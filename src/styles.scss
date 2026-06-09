@@ -1,0 +1,162 @@
+@use '@angular/material' as mat;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  @include mat.theme(
+    (
+      color: (
+        theme-type: light,
+        primary: mat.$violet-palette,
+        tertiary: mat.$violet-palette,
+      ),
+      typography: (
+        brand-family: 'Inter',
+        plain-family: 'Inter',
+      ),
+      density: 0,
+    )
+  );
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+body {
+  background-color: #f8f7fc;
+  color: #1a0b2e;
+}
+
+// ── Layout helpers ──────────────────────────────────────────────
+.page-header {
+  @apply space-y-1;
+}
+
+.page-title {
+  @apply text-2xl font-bold tracking-tight text-midnight-900;
+}
+
+.page-subtitle {
+  @apply text-sm text-slate-500;
+}
+
+.app-card {
+  @apply rounded-2xl border border-brand-100 bg-white shadow-card;
+}
+
+.list-item {
+  @apply rounded-xl border border-brand-100 bg-white p-4 shadow-card transition-shadow hover:shadow-card-hover;
+}
+
+// ── Material overrides ─────────────────────────────────────────
+.mat-mdc-form-field {
+  width: 100%;
+}
+
+.mat-mdc-form-field-infix {
+  min-height: 44px;
+}
+
+.mat-mdc-dialog-container .mat-mdc-dialog-content {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.mat-mdc-select-panel,
+.mat-mdc-autocomplete-panel {
+  max-height: 280px !important;
+}
+
+.mat-mdc-card {
+  border-radius: 1rem !important;
+  border: 1px solid #ede9fe !important;
+  box-shadow: 0 1px 3px 0 rgb(26 11 46 / 0.06) !important;
+}
+
+.mat-mdc-card-header {
+  padding: 1.25rem 1.25rem 0 !important;
+}
+
+.mat-mdc-card-content {
+  padding: 1rem 1.25rem 1.25rem !important;
+}
+
+.mat-toolbar {
+  background: linear-gradient(135deg, #1a0b2e 0%, #2d1b4e 100%) !important;
+  color: white !important;
+}
+
+.mat-toolbar .mat-icon {
+  color: white;
+}
+
+.mat-mdc-tab-group {
+  --mat-tab-header-active-label-text-color: #6d28d9;
+  --mat-tab-header-active-focus-label-text-color: #6d28d9;
+  --mat-tab-header-active-hover-label-text-color: #6d28d9;
+  --mat-tab-header-inactive-label-text-color: #64748b;
+}
+
+.mat-mdc-slide-toggle {
+  --mdc-switch-selected-track-color: #7c3aed;
+  --mdc-switch-selected-handle-color: #ffffff;
+  --mdc-switch-selected-hover-track-color: #6d28d9;
+  --mdc-switch-selected-focus-track-color: #6d28d9;
+}
+
+.mat-mdc-table {
+  background: transparent !important;
+}
+
+.mat-mdc-header-row {
+  background-color: #f5f3ff !important;
+}
+
+.mat-mdc-header-cell {
+  color: #4c1d95 !important;
+  font-weight: 600 !important;
+  font-size: 0.75rem !important;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+// Sidenav styling
+.mat-drawer {
+  background-color: #1a0b2e !important;
+  color: #e2ddf0 !important;
+  border-right: none !important;
+}
+
+.mat-drawer .mat-mdc-list-item {
+  --mdc-list-list-item-label-text-color: #c4b5fd;
+  --mdc-list-list-item-hover-label-text-color: #ffffff;
+  --mdc-list-list-item-leading-icon-color: #a78bfa;
+  border-radius: 0.5rem;
+  margin: 0 0.5rem;
+  width: calc(100% - 1rem) !important;
+}
+
+.mat-drawer .mat-mdc-list-item.active-nav {
+  background-color: rgb(109 40 217 / 0.35) !important;
+  --mdc-list-list-item-label-text-color: #ffffff;
+  --mdc-list-list-item-leading-icon-color: #ddd6fe;
+}
+
+.mat-drawer .mat-mdc-list-item:hover {
+  background-color: rgb(109 40 217 / 0.2) !important;
+}
+
+// Prevent form fields from clipping in flex/grid layouts
+.mat-mdc-form-field-subscript-wrapper {
+  position: relative;
+}
+
+// Fix icon buttons in list rows
+.mat-mdc-icon-button {
+  flex-shrink: 0;
+}
