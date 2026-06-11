@@ -25,7 +25,7 @@ import { AuthService } from '../../core/services/auth.service';
     >
       <mat-card class="w-full max-w-md !rounded-2xl !border-brand-200 !shadow-2xl">
         <mat-card-header class="!pb-2">
-          <mat-card-title class="!text-2xl !font-bold !text-brand-700">BudgetApp</mat-card-title>
+          <mat-card-title class="!text-2xl !font-bold !text-brand-700">Budget Tracker</mat-card-title>
           <mat-card-subtitle>Track spending across accounts</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>

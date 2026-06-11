@@ -24,10 +24,10 @@ import { CategoryService } from '../../core/services/category.service';
   ],
   template: `
     <mat-sidenav-container class="min-h-screen bg-midnight-50">
-      <mat-sidenav #drawer mode="over" class="!w-72" fixedInViewport>
+      <mat-sidenav #drawer mode="over" class="!w-72" fixedInViewport [autoFocus]="false">
         <div class="flex h-full flex-col">
           <div class="border-b border-white/10 px-5 py-6">
-            <p class="text-lg font-bold text-white">BudgetApp</p>
+            <p class="text-lg font-bold text-white">Budget Tracker</p>
             <p class="mt-1 truncate text-xs text-brand-300">{{ auth.user()?.email }}</p>
           </div>
 
@@ -37,6 +37,7 @@ import { CategoryService } from '../../core/services/category.service';
                 mat-list-item
                 [routerLink]="item.path"
                 routerLinkActive="active-nav"
+                [routerLinkActiveOptions]="{ exact: true }"
                 (click)="drawer.close()"
               >
                 <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>

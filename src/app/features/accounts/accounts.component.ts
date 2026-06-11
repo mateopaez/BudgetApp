@@ -1,5 +1,5 @@
 import { CurrencyPipe, DatePipe, TitleCasePipe } from '@angular/common';
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -10,6 +10,8 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatIconModule } from '@angular/material/icon';
 import { Account, AccountType } from '../../core/models';
 import { AccountService } from '../../core/services/account.service';
+import { TransactionService } from '../../core/services/transaction.service';
+import { computeAccountBalance } from '../../core/utils/balance.util';
 
 @Component({
   selector: 'app-accounts',
@@ -70,7 +72,7 @@ import { AccountService } from '../../core/services/account.service';
 
       <div class="space-y-3">
         @for (account of accounts(); track account.id) {
-          <div class="list-item flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div class="app-list-row flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div class="min-w-0">
               <div class="flex items-center gap-2">
                 <span
@@ -84,8 +86,11 @@ import { AccountService } from '../../core/services/account.service';
               <p class="mt-1 text-sm text-slate-500">
                 {{ account.type | titlecase }} · opened {{ account.openingDate | date: 'mediumDate' }}
               </p>
-              <p class="text-sm font-medium text-brand-700">
-                Balance: {{ account.openingBalance | currency }}
+              <p
+                class="text-sm font-medium"
+                [class]="balanceFor(account.id) < 0 ? 'text-red-600' : 'text-brand-700'"
+              >
+                Balance: {{ balanceFor(account.id) | currency }}
               </p>
             </div>
             <div class="flex shrink-0 gap-1 self-end sm:self-center">
@@ -107,8 +112,23 @@ import { AccountService } from '../../core/services/account.service';
 export class AccountsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly accountService = inject(AccountService);
+  private readonly transactionService = inject(TransactionService);
 
   readonly accounts = toSignal(this.accountService.watchAccounts(), { initialValue: [] });
+  private readonly transactions = toSignal(this.transactionService.watchAllTransactions(), {
+    initialValue: [],
+  });
+
+  private readonly balances = computed(() => {
+    const txs = this.transactions();
+    return new Map(
+      this.accounts().map((account) => [account.id, computeAccountBalance(account, txs)])
+    );
+  });
+
+  balanceFor(accountId: string): number {
+    return this.balances().get(accountId) ?? 0;
+  }
   readonly editingId = signal<string | null>(null);
 
   readonly form = this.fb.nonNullable.group({

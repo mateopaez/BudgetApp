@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import Papa from 'papaparse';
 import { Category, CsvRow, ParsedImportRow } from '../models';
 import { parsePostedAt } from '../utils/date.util';
-import { normalizeDescription, sha1 } from '../utils/hash.util';
+import { normalizeMerchant, sha1 } from '../utils/hash.util';
 import { CategoryService } from './category.service';
 
 @Injectable({ providedIn: 'root' })
@@ -34,10 +34,12 @@ export class ImportService {
       const amount = parseFloat(String(row.Amount).replace(/,/g, ''));
       if (Number.isNaN(amount)) continue;
 
-      const description = normalizeDescription(row.Description ?? '');
+      const merchant = normalizeMerchant(row.Description ?? '');
+      if (!merchant) continue;
+
       const postedAt = parsePostedAt(row.Date, row.Time);
       const postedAtISO = postedAt.toISOString();
-      const importHash = await sha1(`${accountId}${postedAtISO}${description}${amount}`);
+      const importHash = await sha1(`${accountId}${postedAtISO}${merchant}${amount}`);
 
       let kind: ParsedImportRow['kind'];
       let categoryId: string | null = null;
@@ -47,8 +49,8 @@ export class ImportService {
         categoryId = null;
       } else {
         const type = (row.Type ?? '').toUpperCase();
-        const descUpper = description.toUpperCase();
-        if (type === 'PAYMENT' || descUpper.includes('PAYMENT')) {
+        const merchantUpper = merchant.toUpperCase();
+        if (type === 'PAYMENT' || merchantUpper.includes('PAYMENT')) {
           kind = 'cc_payment';
           categoryId = ccPaymentId;
         } else {
@@ -59,7 +61,8 @@ export class ImportService {
 
       mapped.push({
         postedAt,
-        description,
+        merchant,
+        description: null,
         amount,
         kind,
         categoryId,

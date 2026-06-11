@@ -29,7 +29,8 @@ export interface Transaction {
   id: string;
   accountId: string;
   postedAt: Date;
-  description: string;
+  merchant: string;
+  description: string | null;
   amount: number;
   kind: TransactionKind;
   categoryId: string | null;
@@ -50,7 +51,8 @@ export interface CsvRow {
 
 export interface ParsedImportRow {
   postedAt: Date;
-  description: string;
+  merchant: string;
+  description: string | null;
   amount: number;
   kind: TransactionKind;
   categoryId: string | null;

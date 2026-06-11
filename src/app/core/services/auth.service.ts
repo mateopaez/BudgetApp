@@ -1,4 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
+import { toObservable } from '@angular/core/rxjs-interop';
+import { filter, firstValueFrom } from 'rxjs';
 import {
   Auth,
   User,
@@ -43,5 +45,13 @@ export class AuthService {
 
   signOut(): Promise<void> {
     return signOut(this.auth);
+  }
+
+  /** Resolves once Firebase has restored persisted auth state from storage. */
+  waitUntilReady(): Promise<void> {
+    if (this.readySignal()) {
+      return Promise.resolve();
+    }
+    return firstValueFrom(toObservable(this.isReady).pipe(filter((ready) => ready))).then(() => undefined);
   }
 }

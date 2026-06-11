@@ -49,7 +49,7 @@ body {
   @apply rounded-2xl border border-brand-100 bg-white shadow-card;
 }
 
-.list-item {
+.app-list-row {
   @apply rounded-xl border border-brand-100 bg-white p-4 shadow-card transition-shadow hover:shadow-card-hover;
 }
 
@@ -132,23 +132,69 @@ body {
   border-right: none !important;
 }
 
-.mat-drawer .mat-mdc-list-item {
+.mat-drawer a.mat-mdc-list-item {
+  color: #c4b5fd;
+  text-decoration: none;
   --mdc-list-list-item-label-text-color: #c4b5fd;
   --mdc-list-list-item-hover-label-text-color: #ffffff;
+  --mdc-list-list-item-focus-label-text-color: #c4b5fd;
   --mdc-list-list-item-leading-icon-color: #a78bfa;
+  --mdc-list-list-item-hover-state-layer-color: transparent;
+  --mdc-list-list-item-hover-state-layer-opacity: 0;
+  --mdc-list-list-item-focus-state-layer-color: transparent;
+  --mdc-list-list-item-focus-state-layer-opacity: 0;
+  --mat-focus-indicator-display: none;
   border-radius: 0.5rem;
   margin: 0 0.5rem;
   width: calc(100% - 1rem) !important;
 }
 
-.mat-drawer .mat-mdc-list-item.active-nav {
+.mat-drawer a.mat-mdc-list-item:visited {
+  color: #c4b5fd;
+  --mdc-list-list-item-label-text-color: #c4b5fd;
+  --mdc-list-list-item-focus-label-text-color: #c4b5fd;
+  --mdc-list-list-item-leading-icon-color: #a78bfa;
+}
+
+.mat-drawer a.mat-mdc-list-item.active-nav,
+.mat-drawer a.mat-mdc-list-item.active-nav:visited,
+.mat-drawer a.mat-mdc-list-item.active-nav:focus,
+.mat-drawer a.mat-mdc-list-item.active-nav:focus-visible {
   background-color: rgb(109 40 217 / 0.35) !important;
+  color: #ffffff;
   --mdc-list-list-item-label-text-color: #ffffff;
+  --mdc-list-list-item-focus-label-text-color: #ffffff;
   --mdc-list-list-item-leading-icon-color: #ddd6fe;
 }
 
-.mat-drawer .mat-mdc-list-item:hover {
+.mat-drawer a.mat-mdc-list-item:hover:not(.active-nav) {
   background-color: rgb(109 40 217 / 0.2) !important;
+  color: #ffffff;
+}
+
+.mat-drawer a.mat-mdc-list-item.active-nav:hover {
+  background-color: rgb(109 40 217 / 0.45) !important;
+}
+
+.mat-drawer a.mat-mdc-list-item:focus .mdc-list-item__primary-text,
+.mat-drawer a.mat-mdc-list-item:focus-visible .mdc-list-item__primary-text {
+  color: #c4b5fd;
+}
+
+.mat-drawer a.mat-mdc-list-item.active-nav:focus .mdc-list-item__primary-text,
+.mat-drawer a.mat-mdc-list-item.active-nav:focus-visible .mdc-list-item__primary-text,
+.mat-drawer a.mat-mdc-list-item.active-nav:hover .mdc-list-item__primary-text {
+  color: #ffffff;
+}
+
+.mat-drawer a.mat-mdc-list-item::before,
+.mat-drawer a.mat-mdc-list-item:hover::before,
+.mat-drawer a.mat-mdc-list-item:focus::before,
+.mat-drawer a.mat-mdc-list-item:focus-visible::before,
+.mat-drawer .mat-mdc-list-item .mat-focus-indicator::before {
+  display: none !important;
+  content: none !important;
+  opacity: 0 !important;
 }
 
 // Prevent form fields from clipping in flex/grid layouts

@@ -9,3 +9,5 @@ export async function sha1(text: string): Promise<string> {
 export function normalizeDescription(description: string): string {
   return description.trim().replace(/\s+/g, ' ');
 }
+
+export const normalizeMerchant = normalizeDescription;

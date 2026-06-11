@@ -18,7 +18,7 @@ import {
   TransactionFormResult,
 } from './transaction-form-dialog.component';
 
-type SortOption = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc' | 'description_asc';
+type SortOption = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc' | 'merchant_asc';
 
 @Component({
   selector: 'app-transactions',
@@ -85,7 +85,7 @@ type SortOption = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc' | 'des
               <mat-option value="date_asc">Date (oldest first)</mat-option>
               <mat-option value="amount_desc">Amount (high to low)</mat-option>
               <mat-option value="amount_asc">Amount (low to high)</mat-option>
-              <mat-option value="description_asc">Description (A–Z)</mat-option>
+              <mat-option value="merchant_asc">Merchant (A–Z)</mat-option>
             </mat-select>
           </mat-form-field>
         </form>
@@ -93,34 +93,37 @@ type SortOption = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc' | 'des
 
       <div class="space-y-3">
         @for (tx of transactions(); track tx.id) {
-          <div class="list-item">
+          <div class="app-list-row">
             <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div class="min-w-0 flex-1">
                 <div class="flex items-start gap-1">
                   @if (editingId() === tx.id) {
                     <mat-form-field class="min-w-0 flex-1">
-                      <mat-label>Description</mat-label>
+                      <mat-label>Merchant</mat-label>
                       <input
                         matInput
-                        [value]="editDescription()"
-                        (input)="editDescription.set($any($event.target).value)"
-                        (keydown.enter)="saveDescription(tx.id)"
-                        (keydown.escape)="cancelEditDescription()"
+                        [value]="editMerchant()"
+                        (input)="editMerchant.set($any($event.target).value)"
+                        (keydown.enter)="saveMerchant(tx.id)"
+                        (keydown.escape)="cancelEditMerchant()"
                       />
                     </mat-form-field>
-                    <button mat-icon-button color="primary" (click)="saveDescription(tx.id)">
+                    <button mat-icon-button color="primary" (click)="saveMerchant(tx.id)">
                       <mat-icon>check</mat-icon>
                     </button>
-                    <button mat-icon-button (click)="cancelEditDescription()">
+                    <button mat-icon-button (click)="cancelEditMerchant()">
                       <mat-icon>close</mat-icon>
                     </button>
                   } @else {
-                    <p class="min-w-0 flex-1 font-medium text-midnight-900">{{ tx.description }}</p>
-                    <button mat-icon-button class="shrink-0" (click)="startEditDescription(tx)">
+                    <p class="min-w-0 flex-1 font-medium text-midnight-900">{{ tx.merchant }}</p>
+                    <button mat-icon-button class="shrink-0" (click)="startEditMerchant(tx)">
                       <mat-icon class="!text-base">edit</mat-icon>
                     </button>
                   }
                 </div>
+                @if (tx.description) {
+                  <p class="mt-0.5 text-sm text-slate-500">{{ tx.description }}</p>
+                }
                 <p class="mt-1 text-sm text-slate-500">
                   {{ tx.postedAt | date: 'medium' }} · {{ accountName(tx.accountId) }} · {{ tx.kind }}
                   @if (isInbox(tx)) {
@@ -194,7 +197,7 @@ export class TransactionsComponent {
   });
 
   readonly editingId = signal<string | null>(null);
-  readonly editDescription = signal('');
+  readonly editMerchant = signal('');
   private readonly pendingCategories = signal<Record<string, string | null>>({});
 
   readonly filters = this.fb.nonNullable.group({
@@ -244,8 +247,8 @@ export class TransactionsComponent {
         return sorted.sort((a, b) => b.amount - a.amount);
       case 'amount_asc':
         return sorted.sort((a, b) => a.amount - b.amount);
-      case 'description_asc':
-        return sorted.sort((a, b) => a.description.localeCompare(b.description));
+      case 'merchant_asc':
+        return sorted.sort((a, b) => a.merchant.localeCompare(b.merchant));
       case 'date_desc':
       default:
         return sorted.sort((a, b) => b.postedAt.getTime() - a.postedAt.getTime());
@@ -302,21 +305,21 @@ export class TransactionsComponent {
     });
   }
 
-  startEditDescription(tx: Transaction): void {
+  startEditMerchant(tx: Transaction): void {
     this.editingId.set(tx.id);
-    this.editDescription.set(tx.description);
+    this.editMerchant.set(tx.merchant);
   }
 
-  cancelEditDescription(): void {
+  cancelEditMerchant(): void {
     this.editingId.set(null);
-    this.editDescription.set('');
+    this.editMerchant.set('');
   }
 
-  async saveDescription(id: string): Promise<void> {
-    const description = this.editDescription().trim();
-    if (!description) return;
-    await this.transactionService.update(id, { description });
-    this.cancelEditDescription();
+  async saveMerchant(id: string): Promise<void> {
+    const merchant = this.editMerchant().trim();
+    if (!merchant) return;
+    await this.transactionService.update(id, { merchant });
+    this.cancelEditMerchant();
   }
 
   async updateCategory(id: string, categoryId: string | null): Promise<void> {

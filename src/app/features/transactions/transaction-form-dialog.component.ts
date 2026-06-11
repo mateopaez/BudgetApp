@@ -17,7 +17,8 @@ export interface TransactionFormDialogData {
 export interface TransactionFormResult {
   accountId: string;
   postedAt: Date;
-  description: string;
+  merchant: string;
+  description: string | null;
   amount: number;
   kind: TransactionKind;
   categoryId: string | null;
@@ -59,8 +60,14 @@ export interface TransactionFormResult {
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="sm:col-span-2">
-          <mat-label>Description</mat-label>
-          <input matInput formControlName="description" />
+          <mat-label>Merchant</mat-label>
+          <input matInput formControlName="merchant" placeholder="e.g. Amazon, Whole Foods, Employer" />
+          <mat-hint>Store, vendor, employer, or payee</mat-hint>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="sm:col-span-2">
+          <mat-label>Description (optional)</mat-label>
+          <input matInput formControlName="description" placeholder="Extra notes or details" />
         </mat-form-field>
 
         <mat-form-field appearance="outline">
@@ -110,7 +117,8 @@ export class TransactionFormDialogComponent implements OnInit {
     accountId: ['', Validators.required],
     date: [new Date().toISOString().slice(0, 10), Validators.required],
     time: ['12:00'],
-    description: ['', Validators.required],
+    merchant: ['', Validators.required],
+    description: [''],
     amount: [0, Validators.required],
     kind: ['expense' as TransactionKind, Validators.required],
     categoryId: [null as string | null],
@@ -123,7 +131,8 @@ export class TransactionFormDialogComponent implements OnInit {
         accountId: tx.accountId,
         date: tx.postedAt.toISOString().slice(0, 10),
         time: tx.postedAt.toTimeString().slice(0, 5),
-        description: tx.description,
+        merchant: tx.merchant,
+        description: tx.description ?? '',
         amount: tx.amount,
         kind: tx.kind,
         categoryId: tx.categoryId,
@@ -153,10 +162,12 @@ export class TransactionFormDialogComponent implements OnInit {
     if (this.form.invalid) return;
     const v = this.form.getRawValue();
     const postedAt = new Date(`${v.date}T${v.time || '00:00'}`);
+    const description = v.description.trim() || null;
     this.dialogRef.close({
       accountId: v.accountId,
       postedAt,
-      description: v.description.trim(),
+      merchant: v.merchant.trim(),
+      description,
       amount: v.amount,
       kind: v.kind,
       categoryId: this.showCategory() ? v.categoryId : null,

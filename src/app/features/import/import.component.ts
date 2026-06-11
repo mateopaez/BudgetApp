@@ -31,7 +31,7 @@ import { TransactionService } from '../../core/services/transaction.service';
       <div class="page-header">
         <h1 class="page-title">Import CSV</h1>
         <p class="page-subtitle">
-          Credit card CSV: Description, Type, Card Holder Name, Date, Time, Amount
+          Credit card CSV: Description (→ merchant), Type, Card Holder Name, Date, Time, Amount
         </p>
       </div>
 
@@ -69,9 +69,9 @@ import { TransactionService } from '../../core/services/transaction.service';
               <th mat-header-cell *matHeaderCellDef>Date</th>
               <td mat-cell *matCellDef="let row">{{ row.postedAt | date: 'short' }}</td>
             </ng-container>
-            <ng-container matColumnDef="description">
-              <th mat-header-cell *matHeaderCellDef>Description</th>
-              <td mat-cell *matCellDef="let row" class="max-w-xs truncate">{{ row.description }}</td>
+            <ng-container matColumnDef="merchant">
+              <th mat-header-cell *matHeaderCellDef>Merchant</th>
+              <td mat-cell *matCellDef="let row" class="max-w-xs truncate">{{ row.merchant }}</td>
             </ng-container>
             <ng-container matColumnDef="amount">
               <th mat-header-cell *matHeaderCellDef>Amount</th>
@@ -116,7 +116,7 @@ export class ImportComponent {
   private readonly importService = inject(ImportService);
   private readonly transactionService = inject(TransactionService);
 
-  readonly columns = ['postedAt', 'description', 'amount', 'kind', 'status'];
+  readonly columns = ['postedAt', 'merchant', 'amount', 'kind', 'status'];
   readonly accounts = toSignal(this.accountService.watchAccounts(), { initialValue: [] });
   readonly categories = toSignal(this.categoryService.watchCategories(), { initialValue: [] });
 

@@ -17,13 +17,15 @@ import {
 import { Observable } from 'rxjs';
 import { ParsedImportRow, SplitLine, Transaction, TransactionKind } from '../models';
 import { endOfMonth, startOfMonth } from '../utils/date.util';
+import { normalizeMerchant } from '../utils/hash.util';
 import { toDate, toTimestamp } from '../utils/firestore.util';
 import { AuthService } from './auth.service';
 
 export interface TransactionInput {
   accountId: string;
   postedAt: Date;
-  description: string;
+  merchant: string;
+  description?: string | null;
   amount: number;
   kind: TransactionKind;
   categoryId: string | null;
@@ -100,11 +102,22 @@ export class TransactionService {
   }
 
   private mapDoc(id: string, data: Record<string, unknown>): Transaction {
+    const legacyDescription = (data['description'] as string | undefined) ?? '';
+    const merchant =
+      (data['merchant'] as string | undefined)?.trim() ||
+      normalizeMerchant(legacyDescription) ||
+      'Unknown';
+
     return {
       id,
       accountId: data['accountId'] as string,
       postedAt: toDate(data['postedAt']),
-      description: data['description'] as string,
+      merchant,
+      description: data['merchant']
+        ? ((data['description'] as string | null | undefined) ?? null)
+        : legacyDescription && legacyDescription !== merchant
+          ? legacyDescription
+          : null,
       amount: data['amount'] as number,
       kind: data['kind'] as Transaction['kind'],
       categoryId: (data['categoryId'] as string | null) ?? null,
@@ -119,13 +132,25 @@ export class TransactionService {
     const uid = this.auth.uid();
     if (!uid) throw new Error('Not authenticated');
     const ref = collection(this.firestore, `users/${uid}/transactions`);
-    const docRef = await addDoc(ref, {
-      ...input,
+    const docRef = await addDoc(ref, this.toFirestorePayload(input));
+    return docRef.id;
+  }
+
+  private toFirestorePayload(input: TransactionInput) {
+    const description = input.description?.trim() || null;
+    return {
+      accountId: input.accountId,
       postedAt: toTimestamp(input.postedAt),
+      merchant: normalizeMerchant(input.merchant),
+      description,
+      amount: input.amount,
+      kind: input.kind,
+      categoryId: input.categoryId,
+      ...(input.split ? { split: input.split } : {}),
+      ...(input.importHash ? { importHash: input.importHash } : {}),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-    });
-    return docRef.id;
+    };
   }
 
   async importBatch(accountId: string, rows: ParsedImportRow[]): Promise<{ imported: number; skipped: number }> {
@@ -144,6 +169,7 @@ export class TransactionService {
         batch.set(newRef, {
           accountId,
           postedAt: toTimestamp(row.postedAt),
+          merchant: row.merchant,
           description: row.description,
           amount: row.amount,
           kind: row.kind,
@@ -165,6 +191,9 @@ export class TransactionService {
     await updateDoc(doc(this.firestore, `users/${uid}/transactions/${id}`), {
       ...patch,
       postedAt: patch.postedAt ? toTimestamp(patch.postedAt) : undefined,
+      merchant: patch.merchant ? normalizeMerchant(patch.merchant) : undefined,
+      description:
+        patch.description !== undefined ? patch.description?.trim() || null : undefined,
       updatedAt: serverTimestamp(),
     });
   }
