@@ -10,7 +10,7 @@ import { Category } from '../../core/models';
 import { CategoryService } from '../../core/services/category.service';
 
 @Component({
-  selector: 'app-settings',
+  selector: 'app-categories',
   standalone: true,
   imports: [
     ReactiveFormsModule,
@@ -23,7 +23,7 @@ import { CategoryService } from '../../core/services/category.service';
   template: `
     <div class="space-y-6">
       <div class="page-header">
-        <h1 class="page-title">Settings</h1>
+        <h1 class="page-title">Categories</h1>
         <p class="page-subtitle">Manage your categories and preferences</p>
       </div>
 
@@ -95,7 +95,7 @@ import { CategoryService } from '../../core/services/category.service';
     </div>
   `,
 })
-export class SettingsComponent {
+export class CategoriesComponent {
   private readonly fb = inject(FormBuilder);
   private readonly categoryService = inject(CategoryService);
 

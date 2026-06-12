@@ -80,9 +80,8 @@ export class ShellComponent implements OnInit {
   readonly nav = [
     { path: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
     { path: '/accounts', label: 'Accounts', icon: 'account_balance_wallet' },
-    { path: '/import', label: 'Import CSV', icon: 'upload_file' },
     { path: '/transactions', label: 'Transactions', icon: 'receipt_long' },
-    { path: '/settings', label: 'Settings', icon: 'settings' },
+    { path: '/categories', label: 'Categories', icon: 'category' },
   ];
 
   ngOnInit(): void {

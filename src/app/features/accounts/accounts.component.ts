@@ -35,6 +35,7 @@ import { computeAccountBalance } from '../../core/utils/balance.util';
         <p class="page-subtitle">Checking, savings, and credit cards</p>
       </div>
 
+      <!-- Add account form -->
       <mat-card class="app-card">
         <mat-card-content>
           <form class="grid gap-4 sm:grid-cols-2" [formGroup]="form" (ngSubmit)="save()">
@@ -70,6 +71,7 @@ import { computeAccountBalance } from '../../core/utils/balance.util';
         </mat-card-content>
       </mat-card>
 
+      <!-- Account list -->
       <div class="space-y-3">
         @for (account of accounts(); track account.id) {
           <div class="app-list-row flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

@@ -1,5 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
+import { Router } from '@angular/router';
 import { filter, firstValueFrom } from 'rxjs';
 import {
   Auth,
@@ -15,6 +16,7 @@ import { doc, Firestore, setDoc, serverTimestamp } from '@angular/fire/firestore
 export class AuthService {
   private readonly auth = inject(Auth);
   private readonly firestore = inject(Firestore);
+  private readonly router = inject(Router);
 
   private readonly userSignal = signal<User | null>(null);
   private readonly readySignal = signal(false);
@@ -43,8 +45,9 @@ export class AuthService {
     return signInWithEmailAndPassword(this.auth, email, password).then(() => undefined);
   }
 
-  signOut(): Promise<void> {
-    return signOut(this.auth);
+  async signOut(): Promise<void> {
+    await signOut(this.auth);
+    await this.router.navigateByUrl('/auth');
   }
 
   /** Resolves once Firebase has restored persisted auth state from storage. */

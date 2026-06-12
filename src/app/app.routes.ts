@@ -23,20 +23,16 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/accounts/accounts.component').then((m) => m.AccountsComponent),
       },
-      {
-        path: 'import',
-        loadComponent: () =>
-          import('./features/import/import.component').then((m) => m.ImportComponent),
-      },
+      { path: 'import', redirectTo: 'transactions', pathMatch: 'full' },
       {
         path: 'transactions',
         loadComponent: () =>
           import('./features/transactions/transactions.component').then((m) => m.TransactionsComponent),
       },
       {
-        path: 'settings',
+        path: 'categories',
         loadComponent: () =>
-          import('./features/settings/settings.component').then((m) => m.SettingsComponent),
+          import('./features/categories/categories.component').then((m) => m.CategoriesComponent),
       },
     ],
   },

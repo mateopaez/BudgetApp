@@ -1,16 +1,20 @@
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { MatInputModule } from '@angular/material/input';
 import { MatIconModule } from '@angular/material/icon';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatTableModule } from '@angular/material/table';
 import { MatDialog } from '@angular/material/dialog';
-import { Category, Transaction } from '../../core/models';
+import { Category, ParsedImportRow, Transaction } from '../../core/models';
 import { AccountService } from '../../core/services/account.service';
 import { CategoryService } from '../../core/services/category.service';
+import { ImportProgress, ImportService } from '../../core/services/import.service';
 import { TransactionService } from '../../core/services/transaction.service';
 import { SplitDialogComponent } from './split-dialog.component';
 import {
@@ -27,11 +31,14 @@ type SortOption = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc' | 'mer
     ReactiveFormsModule,
     CurrencyPipe,
     DatePipe,
+    MatCardModule,
     MatFormFieldModule,
     MatSelectModule,
     MatInputModule,
     MatButtonModule,
     MatIconModule,
+    MatProgressBarModule,
+    MatTableModule,
   ],
   template: `
     <div class="space-y-6">
@@ -45,11 +52,120 @@ type SortOption = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc' | 'mer
             }
           </p>
         </div>
-        <button mat-flat-button color="primary" class="shrink-0 self-start" (click)="openAdd()">
-          <mat-icon>add</mat-icon>
-          Add transaction
-        </button>
+        <div class="flex shrink-0 flex-wrap gap-2 self-start">
+          <button mat-stroked-button (click)="toggleImport()">
+            <mat-icon>upload_file</mat-icon>
+            Import CSV
+          </button>
+          <button mat-flat-button color="primary" (click)="openAdd()">
+            <mat-icon>add</mat-icon>
+            Add transaction
+          </button>
+        </div>
       </div>
+
+      @if (showImport()) {
+        <mat-card class="app-card">
+          <mat-card-content class="space-y-4">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <p class="font-medium text-midnight-900">Import credit card CSV</p>
+                <p class="mt-1 text-xs text-slate-500">
+                  Description (→ merchant), Type, Card Holder Name, Date, Time, Amount — parsed client-side
+                </p>
+              </div>
+              <button mat-icon-button aria-label="Close import" (click)="closeImport()">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+
+            <form [formGroup]="importForm">
+              <mat-form-field>
+                <mat-label>Credit card account</mat-label>
+                <mat-select formControlName="accountId">
+                  @for (a of creditCards(); track a.id) {
+                    <mat-option [value]="a.id">{{ a.name }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+            </form>
+
+            <label
+              class="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-brand-200 bg-brand-50 p-8 text-center transition-colors hover:border-brand-400 hover:bg-brand-100/50"
+              [class.pointer-events-none]="parsing()"
+              [class.opacity-60]="parsing()"
+            >
+              <span class="font-medium text-midnight-900">Tap to upload CSV</span>
+              <span class="mt-1 text-xs text-slate-500">Raw file is not stored</span>
+              <input
+                #csvInput
+                type="file"
+                accept=".csv"
+                class="hidden"
+                [disabled]="parsing()"
+                (change)="onImportFile($event)"
+              />
+            </label>
+
+            @if (parsing()) {
+              <div class="space-y-2">
+                <div class="flex items-center justify-between text-sm text-slate-600">
+                  <span>{{ importProgress().message }}</span>
+                  <span>{{ importProgress().progress }}%</span>
+                </div>
+                <mat-progress-bar mode="determinate" [value]="importProgress().progress" />
+              </div>
+            } @else if (importStatus()) {
+              <p class="text-sm text-slate-600">{{ importStatus() }}</p>
+            }
+          </mat-card-content>
+        </mat-card>
+
+        @if (importPreview().length) {
+          <div class="app-card overflow-x-auto">
+            <table mat-table [dataSource]="importPreview()" class="w-full min-w-[640px]">
+              <ng-container matColumnDef="postedAt">
+                <th mat-header-cell *matHeaderCellDef>Date</th>
+                <td mat-cell *matCellDef="let row">{{ row.postedAt | date: 'short' }}</td>
+              </ng-container>
+              <ng-container matColumnDef="merchant">
+                <th mat-header-cell *matHeaderCellDef>Merchant</th>
+                <td mat-cell *matCellDef="let row" class="max-w-xs truncate">{{ row.merchant }}</td>
+              </ng-container>
+              <ng-container matColumnDef="amount">
+                <th mat-header-cell *matHeaderCellDef>Amount</th>
+                <td mat-cell *matCellDef="let row">{{ row.amount | currency }}</td>
+              </ng-container>
+              <ng-container matColumnDef="kind">
+                <th mat-header-cell *matHeaderCellDef>Kind</th>
+                <td mat-cell *matCellDef="let row">{{ row.kind }}</td>
+              </ng-container>
+              <ng-container matColumnDef="status">
+                <th mat-header-cell *matHeaderCellDef>Status</th>
+                <td mat-cell *matCellDef="let row">
+                  <span
+                    class="font-medium"
+                    [class]="row.isDuplicate ? 'text-amber-600' : 'text-brand-600'"
+                  >
+                    {{ row.isDuplicate ? 'Duplicate (skip)' : 'New' }}
+                  </span>
+                </td>
+              </ng-container>
+              <tr mat-header-row *matHeaderRowDef="importColumns"></tr>
+              <tr mat-row *matRowDef="let row; columns: importColumns"></tr>
+            </table>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-3">
+            <button mat-flat-button color="primary" (click)="confirmImport()" [disabled]="importing()">
+              Import {{ importNewCount() }} transactions
+            </button>
+            <p class="text-sm text-slate-500">
+              {{ importDuplicateCount() }} duplicates will be skipped
+            </p>
+          </div>
+        }
+      }
 
       <div class="app-card p-4">
         <form class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" [formGroup]="filters">
@@ -187,6 +303,7 @@ export class TransactionsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly accountService = inject(AccountService);
   private readonly categoryService = inject(CategoryService);
+  private readonly importService = inject(ImportService);
   private readonly transactionService = inject(TransactionService);
   private readonly dialog = inject(MatDialog);
 
@@ -194,6 +311,28 @@ export class TransactionsComponent {
   readonly categories = toSignal(this.categoryService.watchCategories(), { initialValue: [] });
   private readonly allTransactions = toSignal(this.transactionService.watchAllTransactions(), {
     initialValue: [],
+  });
+
+  readonly importColumns = ['postedAt', 'merchant', 'amount', 'kind', 'status'];
+  readonly showImport = signal(false);
+  readonly parsing = signal(false);
+  readonly importing = signal(false);
+  readonly importPreview = signal<ParsedImportRow[]>([]);
+  readonly importStatus = signal<string | null>(null);
+  readonly importProgress = signal<ImportProgress>({
+    phase: 'parsing',
+    progress: 0,
+    message: 'Starting…',
+  });
+
+  readonly creditCards = computed(() => this.accounts().filter((a) => a.type === 'credit_card'));
+  readonly importNewCount = computed(() => this.importPreview().filter((r) => !r.isDuplicate).length);
+  readonly importDuplicateCount = computed(() =>
+    this.importPreview().filter((r) => r.isDuplicate).length
+  );
+
+  readonly importForm = this.fb.nonNullable.group({
+    accountId: ['', Validators.required],
   });
 
   readonly editingId = signal<string | null>(null);
@@ -272,6 +411,78 @@ export class TransactionsComponent {
       return this.categories().filter((c) => !c.isSystem);
     }
     return this.categories().filter((c) => !c.isSystem || c.systemKey === 'refund');
+  }
+
+  toggleImport(): void {
+    this.showImport.update((open) => !open);
+    if (this.showImport()) {
+      this.prefillImportAccount();
+    }
+  }
+
+  closeImport(): void {
+    this.showImport.set(false);
+    this.importPreview.set([]);
+    this.importStatus.set(null);
+    this.parsing.set(false);
+  }
+
+  private prefillImportAccount(): void {
+    const filterAccountId = this.filters.get('accountId')?.value;
+    if (filterAccountId && this.creditCards().some((a) => a.id === filterAccountId)) {
+      this.importForm.patchValue({ accountId: filterAccountId });
+    }
+  }
+
+  private updateImportProgress(progress: ImportProgress): void {
+    this.importProgress.set(progress);
+  }
+
+  async onImportFile(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    const accountId = this.importForm.value.accountId;
+    if (!file || !accountId) {
+      this.importStatus.set('Select a credit card account first.');
+      input.value = '';
+      return;
+    }
+
+    this.parsing.set(true);
+    this.importPreview.set([]);
+    this.importStatus.set(null);
+    this.updateImportProgress({ phase: 'parsing', progress: 0, message: 'Reading CSV…' });
+
+    try {
+      const rows = await this.importService.parseCsvFile(file, (p) => this.updateImportProgress(p));
+      const mapped = await this.importService.mapRows(
+        rows,
+        accountId,
+        this.categories(),
+        (p) => this.updateImportProgress(p)
+      );
+      this.importPreview.set(mapped);
+      this.importStatus.set(`Parsed ${mapped.length} rows. Review before importing.`);
+    } catch (e: unknown) {
+      this.importStatus.set(e instanceof Error ? e.message : 'Failed to parse CSV');
+    } finally {
+      this.parsing.set(false);
+      input.value = '';
+    }
+  }
+
+  async confirmImport(): Promise<void> {
+    const accountId = this.importForm.value.accountId;
+    if (!accountId || !this.importPreview().length) return;
+    this.importing.set(true);
+    try {
+      const result = await this.transactionService.importBatch(accountId, this.importPreview());
+      this.importStatus.set(`Imported ${result.imported}, skipped ${result.skipped} duplicates.`);
+      this.importPreview.set([]);
+      this.filters.patchValue({ accountId });
+    } finally {
+      this.importing.set(false);
+    }
   }
 
   openAdd(): void {
