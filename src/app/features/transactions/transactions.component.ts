@@ -1,7 +1,8 @@
 import { CurrencyPipe, DatePipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -9,20 +10,30 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatInputModule } from '@angular/material/input';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTableModule } from '@angular/material/table';
+import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatDialog } from '@angular/material/dialog';
 import { Category, ParsedImportRow, Transaction } from '../../core/models';
 import { AccountService } from '../../core/services/account.service';
 import { CategoryService } from '../../core/services/category.service';
 import { ImportProgress, ImportService } from '../../core/services/import.service';
 import { TransactionService } from '../../core/services/transaction.service';
+import { computeAccountBalance } from '../../core/utils/balance.util';
+import { DateRangePreset, formatDateParam, parseDateParam, resolveDateRange } from '../../core/utils/date.util';
+import {
+  computeNetActivity,
+  computeTransactionSummary,
+  filterTransactions,
+  KindFilter,
+  SortOption,
+  transactionAmountClass,
+} from '../../core/utils/transaction-filters.util';
 import { SplitDialogComponent } from './split-dialog.component';
 import {
   TransactionFormDialogComponent,
   TransactionFormResult,
 } from './transaction-form-dialog.component';
-
-type SortOption = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc' | 'merchant_asc';
 
 @Component({
   selector: 'app-transactions',
@@ -38,7 +49,9 @@ type SortOption = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc' | 'mer
     MatButtonModule,
     MatIconModule,
     MatProgressBarModule,
+    MatSlideToggleModule,
     MatTableModule,
+    MatDatepickerModule,
   ],
   template: `
     <div class="space-y-6">
@@ -46,10 +59,7 @@ type SortOption = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc' | 'mer
         <div class="page-header">
           <h1 class="page-title">Transactions</h1>
           <p class="page-subtitle">
-            {{ transactions().length }} shown
-            @if (filters.get('period')?.value === 'all') {
-              · all time
-            }
+            {{ transactions().length }} shown · {{ dateRange().label }}
           </p>
         </div>
         <div class="flex shrink-0 flex-wrap gap-2 self-start">
@@ -167,8 +177,8 @@ type SortOption = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc' | 'mer
         }
       }
 
-      <div class="app-card p-4">
-        <form class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" [formGroup]="filters">
+      <div class="app-card p-4" [formGroup]="filters">
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <mat-form-field>
             <mat-label>Account</mat-label>
             <mat-select formControlName="accountId">
@@ -180,31 +190,99 @@ type SortOption = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc' | 'mer
           </mat-form-field>
 
           <mat-form-field>
-            <mat-label>Period</mat-label>
+            <mat-label>Date range</mat-label>
             <mat-select formControlName="period">
               <mat-option value="all">All time</mat-option>
-              <mat-option value="month">Specific month</mat-option>
+              <mat-option value="this_month">This month</mat-option>
+              <mat-option value="last_30_days">Last 30 days</mat-option>
+              <mat-option value="last_3_months">Last 3 months</mat-option>
+              <mat-option value="ytd">Year to date</mat-option>
+              <mat-option value="custom">Custom range</mat-option>
             </mat-select>
           </mat-form-field>
 
-          @if (filters.get('period')?.value === 'month') {
-            <mat-form-field>
-              <mat-label>Month</mat-label>
-              <input matInput type="month" formControlName="month" />
+          @if (filters.get('period')?.value === 'custom') {
+            <mat-form-field class="sm:col-span-2">
+              <mat-label>Custom range</mat-label>
+              <mat-date-range-input [rangePicker]="rangePicker">
+                <input matStartDate formControlName="from" placeholder="Start" />
+                <input matEndDate formControlName="to" placeholder="End" />
+              </mat-date-range-input>
+              <mat-datepicker-toggle matIconSuffix [for]="rangePicker" />
+              <mat-date-range-picker #rangePicker />
             </mat-form-field>
           }
+
+          <mat-form-field>
+            <mat-label>Kind</mat-label>
+            <mat-select formControlName="kind">
+              <mat-option value="all">All kinds</mat-option>
+              <mat-option value="expense">Expenses</mat-option>
+              <mat-option value="income">Income</mat-option>
+              <mat-option value="transfer">Transfers</mat-option>
+              <mat-option value="cc_payment">CC payments</mat-option>
+              <mat-option value="refund">Refunds</mat-option>
+            </mat-select>
+          </mat-form-field>
 
           <mat-form-field>
             <mat-label>Sort by</mat-label>
             <mat-select formControlName="sort">
               <mat-option value="date_desc">Date (newest first)</mat-option>
               <mat-option value="date_asc">Date (oldest first)</mat-option>
+              <mat-option value="kind_then_date_desc">Kind, then date</mat-option>
               <mat-option value="amount_desc">Amount (high to low)</mat-option>
               <mat-option value="amount_asc">Amount (low to high)</mat-option>
               <mat-option value="merchant_asc">Merchant (A–Z)</mat-option>
             </mat-select>
           </mat-form-field>
-        </form>
+        </div>
+
+        <div class="mt-4 flex flex-wrap items-center gap-4 border-t border-brand-100 pt-4">
+          <mat-slide-toggle formControlName="hideCcAndRefunds">
+            Hide CC payments &amp; refunds
+          </mat-slide-toggle>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-3">
+        <div class="rounded-xl border border-red-100 bg-red-50 px-4 py-3">
+          <p class="text-xs font-medium uppercase tracking-wide text-red-700">Expenses</p>
+          <p class="text-lg font-semibold text-red-600">{{ summary().expenses | currency }}</p>
+        </div>
+        <div class="rounded-xl border border-brand-100 bg-brand-50 px-4 py-3">
+          <p class="text-xs font-medium uppercase tracking-wide text-brand-700">Income</p>
+          <p class="text-lg font-semibold text-brand-600">{{ summary().income | currency }}</p>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white px-4 py-3">
+          <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Net (in range)</p>
+          <p
+            class="text-lg font-semibold"
+            [class]="summary().net < 0 ? 'text-red-600' : summary().net > 0 ? 'text-brand-600' : 'text-slate-600'"
+          >
+            {{ summary().net | currency }}
+          </p>
+        </div>
+        @if (selectedAccountBalance() !== null) {
+          <div class="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3">
+            <p class="text-xs font-medium uppercase tracking-wide text-emerald-700">Balance today</p>
+            <p
+              class="text-lg font-semibold"
+              [class]="selectedAccountBalance()! < 0 ? 'text-red-600' : 'text-emerald-700'"
+            >
+              {{ selectedAccountBalance()! | currency }}
+            </p>
+          </div>
+          <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Activity in range</p>
+            <p
+              class="text-lg font-semibold"
+              [class]="filteredNetActivity() < 0 ? 'text-red-600' : filteredNetActivity() > 0 ? 'text-brand-600' : 'text-slate-600'"
+            >
+              {{ filteredNetActivity() | currency }}
+            </p>
+          </div>
+        }
       </div>
 
       <div class="space-y-3">
@@ -248,10 +326,7 @@ type SortOption = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc' | 'mer
                     </span>
                   }
                 </p>
-                <p
-                  class="mt-1 text-lg font-semibold"
-                  [class]="tx.amount < 0 ? 'text-red-600' : 'text-brand-600'"
-                >
+                <p class="mt-1 text-lg font-semibold" [class]="amountClass(tx)">
                   {{ tx.amount | currency }}
                 </p>
                 @if (tx.split?.length) {
@@ -299,13 +374,15 @@ type SortOption = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc' | 'mer
     </div>
   `,
 })
-export class TransactionsComponent {
+export class TransactionsComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly accountService = inject(AccountService);
   private readonly categoryService = inject(CategoryService);
   private readonly importService = inject(ImportService);
   private readonly transactionService = inject(TransactionService);
   private readonly dialog = inject(MatDialog);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   readonly accounts = toSignal(this.accountService.watchAccounts(), { initialValue: [] });
   readonly categories = toSignal(this.categoryService.watchCategories(), { initialValue: [] });
@@ -339,59 +416,108 @@ export class TransactionsComponent {
   readonly editMerchant = signal('');
   private readonly pendingCategories = signal<Record<string, string | null>>({});
 
-  readonly filters = this.fb.nonNullable.group({
-    accountId: [''],
-    period: ['all' as 'all' | 'month'],
-    month: [new Date().toISOString().slice(0, 7)],
-    sort: ['date_desc' as SortOption],
+  readonly filters = this.fb.group({
+    accountId: this.fb.nonNullable.control(''),
+    period: this.fb.nonNullable.control<DateRangePreset>('all'),
+    from: this.fb.control<Date | null>(null),
+    to: this.fb.control<Date | null>(null),
+    kind: this.fb.nonNullable.control<KindFilter>('all'),
+    hideCcAndRefunds: this.fb.nonNullable.control(false),
+    sort: this.fb.nonNullable.control<SortOption>('date_desc'),
   });
 
   private readonly filterValues = toSignal(this.filters.valueChanges, {
     initialValue: this.filters.getRawValue(),
   });
 
+  readonly dateRange = computed(() => {
+    const f = this.filterValues();
+    return resolveDateRange(f.period ?? 'all', f.from, f.to);
+  });
+
   readonly transactions = computed(() => {
     const f = this.filterValues();
-    let list = [...this.allTransactions()];
-
-    if (f.accountId) {
-      list = list.filter((tx) => tx.accountId === f.accountId);
-    }
-
-    if (f.period === 'month') {
-      const [year, month] = (f.month || '').split('-').map(Number);
-      if (year && month) {
-        list = list.filter((tx) => {
-          const d = tx.postedAt;
-          return d.getFullYear() === year && d.getMonth() + 1 === month;
-        });
-      }
-    }
-
-    return this.sortTransactions(list, f.sort ?? 'date_desc');
+    return filterTransactions(this.allTransactions(), this.dateRange(), {
+      accountId: f.accountId ?? '',
+      kind: f.kind ?? 'all',
+      hideCcAndRefunds: !!f.hideCcAndRefunds,
+      sort: f.sort ?? 'date_desc',
+    });
   });
+
+  readonly summary = computed(() => computeTransactionSummary(this.transactions()));
+
+  readonly selectedAccountBalance = computed(() => {
+    const accountId = this.filterValues().accountId;
+    if (!accountId) return null;
+    const account = this.accounts().find((a) => a.id === accountId);
+    if (!account) return null;
+    return computeAccountBalance(account, this.allTransactions());
+  });
+
+  readonly filteredNetActivity = computed(() => computeNetActivity(this.transactions()));
+
+  readonly amountClass = transactionAmountClass;
+
+  ngOnInit(): void {
+    const q = this.route.snapshot.queryParamMap;
+    const period = (q.get('period') as DateRangePreset | null) ?? 'all';
+    const kind = (q.get('kind') as KindFilter | null) ?? 'all';
+
+    this.filters.patchValue(
+      {
+        accountId: q.get('accountId') ?? '',
+        period: this.isDateRangePreset(period) ? period : 'all',
+        from: parseDateParam(q.get('from')),
+        to: parseDateParam(q.get('to')),
+        kind: this.isKindFilter(kind) ? kind : 'all',
+        hideCcAndRefunds: q.get('hideCc') === '1',
+        sort: (q.get('sort') as SortOption) ?? 'date_desc',
+      },
+      { emitEvent: true }
+    );
+
+    this.filters.get('period')?.valueChanges.subscribe((period) => {
+      if (period !== 'custom') return;
+      const from = this.filters.get('from')?.value;
+      const to = this.filters.get('to')?.value;
+      if (from && to) return;
+      const end = new Date();
+      const start = new Date();
+      start.setDate(start.getDate() - 29);
+      this.filters.patchValue({ from: start, to: end }, { emitEvent: true });
+    });
+
+    this.filters.valueChanges.subscribe((v) => {
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: {
+          accountId: v.accountId || null,
+          period: v.period === 'all' ? null : v.period,
+          from: v.period === 'custom' && v.from ? formatDateParam(v.from) : null,
+          to: v.period === 'custom' && v.to ? formatDateParam(v.to) : null,
+          kind: v.kind === 'all' ? null : v.kind,
+          hideCc: v.hideCcAndRefunds ? '1' : null,
+          sort: v.sort === 'date_desc' ? null : v.sort,
+        },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      });
+    });
+  }
+
+  private isDateRangePreset(value: string): value is DateRangePreset {
+    return ['all', 'this_month', 'last_30_days', 'last_3_months', 'ytd', 'custom'].includes(value);
+  }
+
+  private isKindFilter(value: string): value is KindFilter {
+    return ['all', 'expense', 'income', 'transfer', 'cc_payment', 'refund'].includes(value);
+  }
 
   compareIds = (a: string | null, b: string | null): boolean => a === b;
 
   categoryValue(tx: Transaction): string | null {
     return this.pendingCategories()[tx.id] ?? tx.categoryId;
-  }
-
-  private sortTransactions(list: Transaction[], sort: SortOption): Transaction[] {
-    const sorted = [...list];
-    switch (sort) {
-      case 'date_asc':
-        return sorted.sort((a, b) => a.postedAt.getTime() - b.postedAt.getTime());
-      case 'amount_desc':
-        return sorted.sort((a, b) => b.amount - a.amount);
-      case 'amount_asc':
-        return sorted.sort((a, b) => a.amount - b.amount);
-      case 'merchant_asc':
-        return sorted.sort((a, b) => a.merchant.localeCompare(b.merchant));
-      case 'date_desc':
-      default:
-        return sorted.sort((a, b) => b.postedAt.getTime() - a.postedAt.getTime());
-    }
   }
 
   accountName(accountId: string): string {

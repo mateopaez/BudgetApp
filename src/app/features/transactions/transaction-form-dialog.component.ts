@@ -6,6 +6,11 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { Account, Category, Transaction, TransactionKind } from '../../core/models';
+import {
+  absoluteAmountForForm,
+  amountHintForKind,
+  signedAmountForKind,
+} from '../../core/utils/amount.util';
 
 export interface TransactionFormDialogData {
   mode: 'add' | 'edit';
@@ -71,12 +76,6 @@ export interface TransactionFormResult {
         </mat-form-field>
 
         <mat-form-field appearance="outline">
-          <mat-label>Amount</mat-label>
-          <input matInput type="number" step="0.01" formControlName="amount" />
-          <mat-hint>Negative = expense/outflow, positive = income/credit</mat-hint>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline">
           <mat-label>Kind</mat-label>
           <mat-select formControlName="kind">
             <mat-option value="expense">Expense</mat-option>
@@ -85,6 +84,12 @@ export interface TransactionFormResult {
             <mat-option value="cc_payment">Credit card payment</mat-option>
             <mat-option value="refund">Refund / credit</mat-option>
           </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Amount</mat-label>
+          <input matInput type="number" step="0.01" min="0.01" formControlName="amount" />
+          <mat-hint>{{ amountHint() }}</mat-hint>
         </mat-form-field>
 
         @if (showCategory()) {
@@ -119,8 +124,8 @@ export class TransactionFormDialogComponent implements OnInit {
     time: ['12:00'],
     merchant: ['', Validators.required],
     description: [''],
-    amount: [0, Validators.required],
     kind: ['expense' as TransactionKind, Validators.required],
+    amount: [0, [Validators.required, Validators.min(0.01)]],
     categoryId: [null as string | null],
   });
 
@@ -133,13 +138,17 @@ export class TransactionFormDialogComponent implements OnInit {
         time: tx.postedAt.toTimeString().slice(0, 5),
         merchant: tx.merchant,
         description: tx.description ?? '',
-        amount: tx.amount,
         kind: tx.kind,
+        amount: absoluteAmountForForm(tx.amount),
         categoryId: tx.categoryId,
       });
     } else if (this.data.accounts.length === 1) {
       this.form.patchValue({ accountId: this.data.accounts[0].id });
     }
+  }
+
+  amountHint(): string {
+    return amountHintForKind(this.form.get('kind')?.value ?? 'expense');
   }
 
   showCategory(): boolean {
@@ -149,10 +158,7 @@ export class TransactionFormDialogComponent implements OnInit {
 
   selectableCategories(): Category[] {
     const kind = this.form.get('kind')?.value;
-    if (kind === 'income') {
-      return this.data.categories.filter((c) => !c.isSystem);
-    }
-    if (kind === 'expense') {
+    if (kind === 'income' || kind === 'expense') {
       return this.data.categories.filter((c) => !c.isSystem);
     }
     return [];
@@ -168,7 +174,7 @@ export class TransactionFormDialogComponent implements OnInit {
       postedAt,
       merchant: v.merchant.trim(),
       description,
-      amount: v.amount,
+      amount: signedAmountForKind(v.amount, v.kind),
       kind: v.kind,
       categoryId: this.showCategory() ? v.categoryId : null,
     } satisfies TransactionFormResult);

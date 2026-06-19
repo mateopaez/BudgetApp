@@ -82,6 +82,7 @@ export class ShellComponent implements OnInit {
     { path: '/accounts', label: 'Accounts', icon: 'account_balance_wallet' },
     { path: '/transactions', label: 'Transactions', icon: 'receipt_long' },
     { path: '/categories', label: 'Categories', icon: 'category' },
+    { path: '/todos', label: 'Ideas', icon: 'lightbulb' },
   ];
 
   ngOnInit(): void {
