@@ -1,0 +1,197 @@
+import {
+  AmountSignConvention,
+  EMPTY_IMPORT_MAPPING,
+  ImportColumnMapping,
+  ImportProfileConfig,
+} from '../models/import.model';
+
+export const BUILTIN_IMPORT_PROFILES: ImportProfileConfig[] = [
+  {
+    id: 'builtin:personal-cc',
+    name: 'Personal credit card (Description, Type, Date, Amount)',
+    isBuiltin: true,
+    amountSign: 'negative_expense',
+    detectCcPayments: true,
+    mapping: {
+      date: 'Date',
+      merchant: 'Description',
+      amount: 'Amount',
+      debit: null,
+      credit: null,
+      time: 'Time',
+      type: 'Type',
+      memo: null,
+    },
+  },
+  {
+    id: 'builtin:debit-credit',
+    name: 'Debit / Credit columns (Date, Description, Debit, Credit)',
+    isBuiltin: true,
+    amountSign: 'negative_expense',
+    detectCcPayments: false,
+    mapping: {
+      date: 'Transaction Date',
+      merchant: 'Description',
+      amount: null,
+      debit: 'Debit',
+      credit: 'Credit',
+      time: null,
+      type: null,
+      memo: null,
+    },
+  },
+  {
+    id: 'builtin:simple',
+    name: 'Simple export (Date, Description, Amount)',
+    isBuiltin: true,
+    amountSign: 'positive_expense',
+    detectCcPayments: false,
+    mapping: {
+      date: 'Date',
+      merchant: 'Description',
+      amount: 'Amount',
+      debit: null,
+      credit: null,
+      time: null,
+      type: null,
+      memo: null,
+    },
+  },
+];
+
+export function getBuiltinProfile(id: string): ImportProfileConfig | undefined {
+  return BUILTIN_IMPORT_PROFILES.find((p) => p.id === id);
+}
+
+export function cloneProfile(profile: ImportProfileConfig): ImportProfileConfig {
+  return {
+    ...profile,
+    mapping: { ...profile.mapping },
+  };
+}
+
+export function createUserProfile(
+  name: string,
+  mapping: ImportColumnMapping,
+  amountSign: AmountSignConvention,
+  detectCcPayments: boolean
+): ImportProfileConfig {
+  return {
+    id: `user:${crypto.randomUUID()}`,
+    name,
+    isBuiltin: false,
+    mapping: { ...mapping },
+    amountSign,
+    detectCcPayments,
+  };
+}
+
+export function remapProfileToHeaders(
+  profile: ImportProfileConfig,
+  headers: string[]
+): ImportProfileConfig {
+  const headerLookup = new Map(headers.map((h) => [normalizeHeader(h), h]));
+
+  const remap = (column: string | null): string | null => {
+    if (!column) return null;
+    return headerLookup.get(normalizeHeader(column)) ?? guessColumn(headers, column);
+  };
+
+  return {
+    ...profile,
+    mapping: {
+      date: remap(profile.mapping.date),
+      merchant: remap(profile.mapping.merchant),
+      amount: remap(profile.mapping.amount),
+      debit: remap(profile.mapping.debit),
+      credit: remap(profile.mapping.credit),
+      time: remap(profile.mapping.time),
+      type: remap(profile.mapping.type),
+      memo: remap(profile.mapping.memo),
+    },
+  };
+}
+
+function normalizeHeader(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+}
+
+function guessColumn(headers: string[], target: string): string | null {
+  const normalized = normalizeHeader(target);
+  const exact = headers.find((h) => normalizeHeader(h) === normalized);
+  if (exact) return exact;
+
+  const aliases: Record<string, string[]> = {
+    date: ['transaction date', 'posting date', 'posted date', 'trans date'],
+    description: ['merchant', 'payee', 'details', 'narrative', 'name'],
+    amount: ['transaction amount', 'value', 'sum'],
+    debit: ['withdrawal', 'debit amount', 'money out'],
+    credit: ['deposit', 'credit amount', 'money in'],
+    time: ['transaction time', 'posting time'],
+    type: ['transaction type', 'trans type'],
+    memo: ['notes', 'memo', 'category'],
+  };
+
+  const key = Object.entries(aliases).find(([, list]) =>
+    list.some((a) => normalized.includes(a) || a.includes(normalized))
+  )?.[0];
+
+  if (!key) return null;
+
+  const candidates = aliases[key];
+  return (
+    headers.find((h) => {
+      const n = normalizeHeader(h);
+      return candidates.some((c) => n === c || n.includes(c));
+    }) ?? null
+  );
+}
+
+export function guessMappingFromHeaders(headers: string[]): ImportColumnMapping {
+  return {
+    date: guessColumn(headers, 'Date'),
+    merchant: guessColumn(headers, 'Description') ?? guessColumn(headers, 'Merchant'),
+    amount: guessColumn(headers, 'Amount'),
+    debit: guessColumn(headers, 'Debit'),
+    credit: guessColumn(headers, 'Credit'),
+    time: guessColumn(headers, 'Time'),
+    type: guessColumn(headers, 'Type'),
+    memo: guessColumn(headers, 'Memo'),
+  };
+}
+
+export function profileFromHeaders(headers: string[]): ImportProfileConfig {
+  const matched = BUILTIN_IMPORT_PROFILES.find((preset) => {
+    const remapped = remapProfileToHeaders(preset, headers);
+    return isMappingComplete(remapped.mapping);
+  });
+
+  if (matched) {
+    return remapProfileToHeaders(matched, headers);
+  }
+
+  return {
+    id: 'builtin:custom',
+    name: 'Custom mapping',
+    isBuiltin: true,
+    amountSign: 'negative_expense',
+    detectCcPayments: true,
+    mapping: guessMappingFromHeaders(headers),
+  };
+}
+
+export function isMappingComplete(mapping: ImportColumnMapping): boolean {
+  if (!mapping.date || !mapping.merchant) return false;
+  const hasAmount = !!mapping.amount;
+  const hasDebitCredit = !!mapping.debit || !!mapping.credit;
+  return hasAmount || hasDebitCredit;
+}
+
+export function mappingValidationError(mapping: ImportColumnMapping): string | null {
+  if (!mapping.date) return 'Map a Date column';
+  if (!mapping.merchant) return 'Map a Merchant / Description column';
+  if (!mapping.amount && !mapping.debit && !mapping.credit) {
+    return 'Map an Amount column or Debit/Credit columns';
+  }
+  return null;
+}

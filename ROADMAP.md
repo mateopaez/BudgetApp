@@ -14,14 +14,14 @@ Actionable breakdown of project ideas, grounded in the current codebase (Angular
 
 ### 1a. Income vs expense filtering & sorting
 
-- [ ] Add a **Kind** filter to the filter bar: `All` | `Expenses` | `Income` | `Transfers` | `CC payments` | `Refunds`
-- [ ] Extend `sort` options with **Kind** groupings (e.g. expenses first, then income) or a secondary sort key
-- [ ] Show **summary chips** above the list for the active filter set:
+- [x] Add a **Kind** filter to the filter bar: `All` | `Expenses` | `Income` | `Transfers` | `CC payments` | `Refunds`
+- [x] Extend `sort` options with **Kind** groupings (e.g. expenses first, then income) or a secondary sort key
+- [x] Show **summary chips** above the list for the active filter set:
   - Total expenses (sum of negative `expense` amounts)
   - Total income (sum of positive `income` amounts)
   - Net change (income + expenses in range)
-- [ ] Color-code list rows consistently: red for outflows, green for inflows, neutral for transfers/CC payments
-- [ ] Add a **quick toggle** “Hide CC payments & refunds” (common when reviewing discretionary spending)
+- [x] Color-code list rows consistently: red for outflows, green for inflows, neutral for transfers/CC payments
+- [x] Add a **quick toggle** “Hide CC payments & refunds” (common when reviewing discretionary spending)
 
 **Files:** `transactions.component.ts`, possibly extract filter logic to `core/utils/transaction-filters.util.ts`
 
@@ -314,14 +314,16 @@ Actionable breakdown of project ideas, grounded in the current codebase (Angular
 
 ## Suggested build order
 
-| Phase | Items | Rationale |
-|-------|--------|-----------|
-| **A — Foundation** | 1a, 1b, 1c | Fixes daily UX and balance trust |
-| **B — Data in** | 2 | Easier onboarding from any bank |
-| **C — Planning** | 3, 4, 7 | Budgets + visibility |
-| **D — Forecasting** | 5, 6 | Calendar + balance history |
-| **E — Debt** | 8, 10 | Liability focus |
-| **F — Intelligence** | 9 | Needs categorized history |
+
+| Phase                | Items      | Rationale                        |
+| -------------------- | ---------- | -------------------------------- |
+| **A — Foundation**   | 1a, 1b, 1c | Fixes daily UX and balance trust |
+| **B — Data in**      | 2          | Easier onboarding from any bank  |
+| **C — Planning**     | 3, 4, 7    | Budgets + visibility             |
+| **D — Forecasting**  | 5, 6       | Calendar + balance history       |
+| **E — Debt**         | 8, 10      | Liability focus                  |
+| **F — Intelligence** | 9          | Needs categorized history        |
+
 
 ---
 

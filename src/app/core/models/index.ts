@@ -41,12 +41,7 @@ export interface Transaction {
 }
 
 export interface CsvRow {
-  Description: string;
-  Type: string;
-  'Card Holder Name': string;
-  Date: string;
-  Time: string;
-  Amount: string;
+  [key: string]: string;
 }
 
 export interface ParsedImportRow {

@@ -18,6 +18,9 @@ import { Category, ParsedImportRow, Transaction } from '../../core/models';
 import { AccountService } from '../../core/services/account.service';
 import { CategoryService } from '../../core/services/category.service';
 import { ImportProgress, ImportService } from '../../core/services/import.service';
+import { ImportProfileService } from '../../core/services/import-profile.service';
+import { profileFromHeaders } from '../../core/import/import-profiles';
+import { ImportProfileConfig, RawCsvRow } from '../../core/models/import.model';
 import { TransactionService } from '../../core/services/transaction.service';
 import { computeAccountBalance } from '../../core/utils/balance.util';
 import { DateRangePreset, formatDateParam, parseDateParam, resolveDateRange } from '../../core/utils/date.util';
@@ -34,6 +37,9 @@ import {
   TransactionFormDialogComponent,
   TransactionFormResult,
 } from './transaction-form-dialog.component';
+import { ImportMapperComponent } from './import-mapper.component';
+
+type ImportStep = 'upload' | 'map' | 'review';
 
 @Component({
   selector: 'app-transactions',
@@ -52,6 +58,7 @@ import {
     MatSlideToggleModule,
     MatTableModule,
     MatDatepickerModule,
+    ImportMapperComponent,
   ],
   template: `
     <div class="space-y-6">
@@ -79,9 +86,9 @@ import {
           <mat-card-content class="space-y-4">
             <div class="flex items-start justify-between gap-3">
               <div>
-                <p class="font-medium text-midnight-900">Import credit card CSV</p>
+                <p class="font-medium text-midnight-900">Import CSV</p>
                 <p class="mt-1 text-xs text-slate-500">
-                  Description (→ merchant), Type, Card Holder Name, Date, Time, Amount — parsed client-side
+                  Map your bank's columns, preview rows, then import — parsed client-side only
                 </p>
               </div>
               <button mat-icon-button aria-label="Close import" (click)="closeImport()">
@@ -91,33 +98,45 @@ import {
 
             <form [formGroup]="importForm">
               <mat-form-field>
-                <mat-label>Credit card account</mat-label>
-                <mat-select formControlName="accountId">
-                  @for (a of creditCards(); track a.id) {
-                    <mat-option [value]="a.id">{{ a.name }}</mat-option>
+                <mat-label>Account</mat-label>
+                <mat-select formControlName="accountId" (selectionChange)="onImportAccountChange()">
+                  @for (a of accounts(); track a.id) {
+                    <mat-option [value]="a.id">{{ a.name }} ({{ a.type }})</mat-option>
                   }
                 </mat-select>
               </mat-form-field>
             </form>
 
-            <label
-              class="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-brand-200 bg-brand-50 p-8 text-center transition-colors hover:border-brand-400 hover:bg-brand-100/50"
-              [class.pointer-events-none]="parsing()"
-              [class.opacity-60]="parsing()"
-            >
-              <span class="font-medium text-midnight-900">Tap to upload CSV</span>
-              <span class="mt-1 text-xs text-slate-500">Raw file is not stored</span>
-              <input
-                #csvInput
-                type="file"
-                accept=".csv"
-                class="hidden"
-                [disabled]="parsing()"
-                (change)="onImportFile($event)"
-              />
-            </label>
+            @if (importStep() === 'upload') {
+              <label
+                class="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-brand-200 bg-brand-50 p-8 text-center transition-colors hover:border-brand-400 hover:bg-brand-100/50"
+                [class.pointer-events-none]="parsing()"
+                [class.opacity-60]="parsing()"
+              >
+                <span class="font-medium text-midnight-900">Tap to upload CSV</span>
+                <span class="mt-1 text-xs text-slate-500">Raw file is not stored</span>
+                <input
+                  #csvInput
+                  type="file"
+                  accept=".csv"
+                  class="hidden"
+                  [disabled]="parsing()"
+                  (change)="onImportFile($event)"
+                />
+              </label>
+            }
 
-            @if (parsing()) {
+            @if (importStep() === 'map' && csvHeaders().length) {
+              <app-import-mapper
+                [headers]="csvHeaders()"
+                [rows]="rawCsvRows()"
+                [initialProfile]="importProfile()"
+                (continueImport)="onContinueMapping($event)"
+              />
+              <button mat-button type="button" (click)="resetImportFile()">Choose a different file</button>
+            }
+
+            @if (parsing() || importing()) {
               <div class="space-y-2">
                 <div class="flex items-center justify-between text-sm text-slate-600">
                   <span>{{ importProgress().message }}</span>
@@ -131,7 +150,7 @@ import {
           </mat-card-content>
         </mat-card>
 
-        @if (importPreview().length) {
+        @if (importStep() === 'review' && importPreview().length) {
           <div class="app-card overflow-x-auto">
             <table mat-table [dataSource]="importPreview()" class="w-full min-w-[640px]">
               <ng-container matColumnDef="postedAt">
@@ -167,6 +186,7 @@ import {
           </div>
 
           <div class="flex flex-wrap items-center gap-3">
+            <button mat-stroked-button type="button" (click)="backToMapping()">Back to mapping</button>
             <button mat-flat-button color="primary" (click)="confirmImport()" [disabled]="importing()">
               Import {{ importNewCount() }} transactions
             </button>
@@ -379,6 +399,7 @@ export class TransactionsComponent implements OnInit {
   private readonly accountService = inject(AccountService);
   private readonly categoryService = inject(CategoryService);
   private readonly importService = inject(ImportService);
+  private readonly importProfileService = inject(ImportProfileService);
   private readonly transactionService = inject(TransactionService);
   private readonly dialog = inject(MatDialog);
   private readonly route = inject(ActivatedRoute);
@@ -391,6 +412,10 @@ export class TransactionsComponent implements OnInit {
   });
 
   readonly importColumns = ['postedAt', 'merchant', 'amount', 'kind', 'status'];
+  readonly importStep = signal<ImportStep>('upload');
+  readonly csvHeaders = signal<string[]>([]);
+  readonly rawCsvRows = signal<RawCsvRow[]>([]);
+  readonly importProfile = signal<ImportProfileConfig>(profileFromHeaders([]));
   readonly showImport = signal(false);
   readonly parsing = signal(false);
   readonly importing = signal(false);
@@ -402,7 +427,24 @@ export class TransactionsComponent implements OnInit {
     message: 'Starting…',
   });
 
-  readonly creditCards = computed(() => this.accounts().filter((a) => a.type === 'credit_card'));
+  private resetImportState(): void {
+    this.importStep.set('upload');
+    this.csvHeaders.set([]);
+    this.rawCsvRows.set([]);
+    this.importPreview.set([]);
+    this.importStatus.set(null);
+    this.parsing.set(false);
+    this.importing.set(false);
+  }
+
+  onImportAccountChange(): void {
+    const accountId = this.importForm.value.accountId;
+    if (!accountId) return;
+    const saved = this.importProfileService.getLastUsedForAccount(accountId);
+    if (saved && this.csvHeaders().length) {
+      this.importProfile.set(saved);
+    }
+  }
   readonly importNewCount = computed(() => this.importPreview().filter((r) => !r.isDuplicate).length);
   readonly importDuplicateCount = computed(() =>
     this.importPreview().filter((r) => r.isDuplicate).length
@@ -548,15 +590,30 @@ export class TransactionsComponent implements OnInit {
 
   closeImport(): void {
     this.showImport.set(false);
+    this.resetImportState();
+  }
+
+  resetImportFile(): void {
+    this.importStep.set('upload');
+    this.csvHeaders.set([]);
+    this.rawCsvRows.set([]);
     this.importPreview.set([]);
     this.importStatus.set(null);
-    this.parsing.set(false);
+  }
+
+  backToMapping(): void {
+    this.importStep.set('map');
+    this.importPreview.set([]);
+    this.importStatus.set(null);
   }
 
   private prefillImportAccount(): void {
     const filterAccountId = this.filters.get('accountId')?.value;
-    if (filterAccountId && this.creditCards().some((a) => a.id === filterAccountId)) {
+    if (filterAccountId && this.accounts().some((a) => a.id === filterAccountId)) {
       this.importForm.patchValue({ accountId: filterAccountId });
+      this.onImportAccountChange();
+    } else if (this.accounts().length === 1) {
+      this.importForm.patchValue({ accountId: this.accounts()[0].id });
     }
   }
 
@@ -569,7 +626,7 @@ export class TransactionsComponent implements OnInit {
     const file = input.files?.[0];
     const accountId = this.importForm.value.accountId;
     if (!file || !accountId) {
-      this.importStatus.set('Select a credit card account first.');
+      this.importStatus.set('Select an account first.');
       input.value = '';
       return;
     }
@@ -580,20 +637,55 @@ export class TransactionsComponent implements OnInit {
     this.updateImportProgress({ phase: 'parsing', progress: 0, message: 'Reading CSV…' });
 
     try {
-      const rows = await this.importService.parseCsvFile(file, (p) => this.updateImportProgress(p));
-      const mapped = await this.importService.mapRows(
-        rows,
-        accountId,
-        this.categories(),
-        (p) => this.updateImportProgress(p)
-      );
-      this.importPreview.set(mapped);
-      this.importStatus.set(`Parsed ${mapped.length} rows. Review before importing.`);
+      const parsed = await this.importService.parseCsvFile(file, (p) => this.updateImportProgress(p));
+      if (!parsed.headers.length) {
+        throw new Error('No column headers found in CSV.');
+      }
+
+      this.csvHeaders.set(parsed.headers);
+      this.rawCsvRows.set(parsed.rows);
+
+      const saved = this.importProfileService.getLastUsedForAccount(accountId);
+      const profile = saved ?? profileFromHeaders(parsed.headers);
+      this.importProfile.set(profile);
+      this.importStep.set('map');
+      this.importStatus.set(`${parsed.rows.length} rows loaded. Map your columns below.`);
     } catch (e: unknown) {
       this.importStatus.set(e instanceof Error ? e.message : 'Failed to parse CSV');
+      this.importStep.set('upload');
     } finally {
       this.parsing.set(false);
       input.value = '';
+    }
+  }
+
+  async onContinueMapping(profile: ImportProfileConfig): Promise<void> {
+    const accountId = this.importForm.value.accountId;
+    if (!accountId || !this.rawCsvRows().length) return;
+
+    this.importing.set(true);
+    this.importStatus.set(null);
+    this.updateImportProgress({ phase: 'mapping', progress: 45, message: 'Mapping all rows…' });
+
+    try {
+      const mapped = await this.importService.mapRows(
+        this.rawCsvRows(),
+        accountId,
+        this.categories(),
+        profile,
+        (p) => this.updateImportProgress(p)
+      );
+      this.importProfile.set(profile);
+      this.importProfileService.rememberForAccount(accountId, profile);
+      this.importPreview.set(mapped);
+      this.importStep.set('review');
+      this.importStatus.set(
+        `Mapped ${mapped.length} of ${this.rawCsvRows().length} rows. Review before importing.`
+      );
+    } catch (e: unknown) {
+      this.importStatus.set(e instanceof Error ? e.message : 'Failed to map rows');
+    } finally {
+      this.importing.set(false);
     }
   }
 
