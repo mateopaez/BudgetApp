@@ -23,6 +23,7 @@ import { profileFromHeaders } from '../../core/import/import-profiles';
 import { ImportProfileConfig, RawCsvRow } from '../../core/models/import.model';
 import { TransactionService } from '../../core/services/transaction.service';
 import { computeAccountBalance } from '../../core/utils/balance.util';
+import { countUncategorizedExpenses } from '../../core/utils/budget.util';
 import { DateRangePreset, formatDateParam, parseDateParam, resolveDateRange } from '../../core/utils/date.util';
 import {
   computeNetActivity,
@@ -67,6 +68,16 @@ type ImportStep = 'upload' | 'map' | 'review';
           <h1 class="page-title">Transactions</h1>
           <p class="page-subtitle">
             {{ transactions().length }} shown · {{ dateRange().label }}
+            @if (inboxCount() > 0) {
+              ·
+              <button
+                type="button"
+                class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 hover:bg-amber-200"
+                (click)="showInbox()"
+              >
+                {{ inboxCount() }} in inbox
+              </button>
+            }
           </p>
         </div>
         <div class="flex shrink-0 flex-wrap gap-2 self-start">
@@ -242,6 +253,17 @@ type ImportStep = 'upload' | 'map' | 'review';
               <mat-option value="transfer">Transfers</mat-option>
               <mat-option value="cc_payment">CC payments</mat-option>
               <mat-option value="refund">Refunds</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field>
+            <mat-label>Category</mat-label>
+            <mat-select formControlName="categoryId">
+              <mat-option value="">All categories</mat-option>
+              <mat-option value="uncategorized">Uncategorized (inbox)</mat-option>
+              @for (c of userCategories(); track c.id) {
+                <mat-option [value]="c.id">{{ c.name }}</mat-option>
+              }
             </mat-select>
           </mat-form-field>
 
@@ -464,6 +486,7 @@ export class TransactionsComponent implements OnInit {
     from: this.fb.control<Date | null>(null),
     to: this.fb.control<Date | null>(null),
     kind: this.fb.nonNullable.control<KindFilter>('all'),
+    categoryId: this.fb.nonNullable.control(''),
     hideCcAndRefunds: this.fb.nonNullable.control(false),
     sort: this.fb.nonNullable.control<SortOption>('date_desc'),
   });
@@ -471,6 +494,8 @@ export class TransactionsComponent implements OnInit {
   private readonly filterValues = toSignal(this.filters.valueChanges, {
     initialValue: this.filters.getRawValue(),
   });
+
+  readonly userCategories = computed(() => this.categories().filter((c) => !c.isSystem));
 
   readonly dateRange = computed(() => {
     const f = this.filterValues();
@@ -482,10 +507,15 @@ export class TransactionsComponent implements OnInit {
     return filterTransactions(this.allTransactions(), this.dateRange(), {
       accountId: f.accountId ?? '',
       kind: f.kind ?? 'all',
+      categoryId: f.categoryId ?? '',
       hideCcAndRefunds: !!f.hideCcAndRefunds,
       sort: f.sort ?? 'date_desc',
     });
   });
+
+  readonly inboxCount = computed(() =>
+    countUncategorizedExpenses(this.allTransactions(), this.dateRange())
+  );
 
   readonly summary = computed(() => computeTransactionSummary(this.transactions()));
 
@@ -513,6 +543,7 @@ export class TransactionsComponent implements OnInit {
         from: parseDateParam(q.get('from')),
         to: parseDateParam(q.get('to')),
         kind: this.isKindFilter(kind) ? kind : 'all',
+        categoryId: q.get('categoryId') ?? '',
         hideCcAndRefunds: q.get('hideCc') === '1',
         sort: (q.get('sort') as SortOption) ?? 'date_desc',
       },
@@ -539,6 +570,7 @@ export class TransactionsComponent implements OnInit {
           from: v.period === 'custom' && v.from ? formatDateParam(v.from) : null,
           to: v.period === 'custom' && v.to ? formatDateParam(v.to) : null,
           kind: v.kind === 'all' ? null : v.kind,
+          categoryId: v.categoryId || null,
           hideCc: v.hideCcAndRefunds ? '1' : null,
           sort: v.sort === 'date_desc' ? null : v.sort,
         },
@@ -568,6 +600,13 @@ export class TransactionsComponent implements OnInit {
 
   isInbox(tx: Transaction): boolean {
     return tx.kind === 'expense' && !tx.categoryId && !tx.split?.length;
+  }
+
+  showInbox(): void {
+    this.filters.patchValue({
+      categoryId: 'uncategorized',
+      kind: 'expense',
+    });
   }
 
   categoryName(id: string): string {

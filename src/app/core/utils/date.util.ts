@@ -122,3 +122,21 @@ export function formatRangeLabel(start: Date, end: Date): string {
     });
   return `${fmt(start, !sameYear)} – ${fmt(end, true)}`;
 }
+
+/** ISO week: Monday start through Sunday end. */
+export function resolveCurrentWeek(now: Date = new Date()): ResolvedDateRange {
+  const day = now.getDay(); // 0 Sun … 6 Sat
+  const daysFromMonday = day === 0 ? 6 : day - 1;
+  const start = startOfDay(new Date(now));
+  start.setDate(start.getDate() - daysFromMonday);
+  const end = endOfDay(new Date(start));
+  end.setDate(end.getDate() + 6);
+  return { start, end, label: formatRangeLabel(start, end) };
+}
+
+export function daysRemainingInWeek(now: Date = new Date()): number {
+  const week = resolveCurrentWeek(now);
+  if (!week.end) return 0;
+  const ms = week.end.getTime() - startOfDay(now).getTime();
+  return Math.max(0, Math.ceil(ms / (24 * 60 * 60 * 1000)));
+}

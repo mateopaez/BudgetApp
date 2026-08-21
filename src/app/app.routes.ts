@@ -19,6 +19,13 @@ export const routes: Routes = [
           import('./features/dashboard/dashboard.component').then((m) => m.DashboardComponent),
       },
       {
+        path: 'overview',
+        loadComponent: () =>
+          import('./features/overview/weekly-overview.component').then(
+            (m) => m.WeeklyOverviewComponent
+          ),
+      },
+      {
         path: 'accounts',
         loadComponent: () =>
           import('./features/accounts/accounts.component').then((m) => m.AccountsComponent),

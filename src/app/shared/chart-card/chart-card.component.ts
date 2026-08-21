@@ -14,12 +14,16 @@ Chart.register(...registerables);
 @Component({
   selector: 'app-chart-card',
   standalone: true,
+  host: { class: 'block' },
   template: `
     <div class="app-card p-5">
       <h3 class="mb-4 text-sm font-semibold uppercase tracking-wide text-brand-800">{{ title() }}</h3>
       <div class="h-56">
         <canvas #canvas></canvas>
       </div>
+      @if (labels().length === 0) {
+        <p class="mt-2 text-center text-sm text-slate-500">No data for this period.</p>
+      }
     </div>
   `,
 })
@@ -34,14 +38,18 @@ export class ChartCardComponent implements AfterViewInit, OnDestroy {
 
   constructor() {
     effect(() => {
-      if (this.chart) {
-        this.updateChart();
-      }
+      // Always read inputs so the effect re-runs when data arrives from Firestore.
+      const labels = this.labels();
+      const data = this.data();
+      const color = this.color();
+      if (!this.chart) return;
+      this.applyData(labels, data, color);
     });
   }
 
   ngAfterViewInit(): void {
     this.chart = new Chart(this.canvasRef().nativeElement, this.buildConfig());
+    this.applyData(this.labels(), this.data(), this.color());
   }
 
   ngOnDestroy(): void {
@@ -52,10 +60,10 @@ export class ChartCardComponent implements AfterViewInit, OnDestroy {
     return {
       type: 'line',
       data: {
-        labels: this.labels(),
+        labels: [],
         datasets: [
           {
-            data: this.data(),
+            data: [],
             borderColor: this.color(),
             backgroundColor: `${this.color()}22`,
             fill: true,
@@ -84,12 +92,12 @@ export class ChartCardComponent implements AfterViewInit, OnDestroy {
     };
   }
 
-  private updateChart(): void {
+  private applyData(labels: string[], data: number[], color: string): void {
     if (!this.chart) return;
-    this.chart.data.labels = this.labels();
-    this.chart.data.datasets[0].data = this.data();
-    this.chart.data.datasets[0].borderColor = this.color();
-    this.chart.data.datasets[0].backgroundColor = `${this.color()}22`;
+    this.chart.data.labels = labels;
+    this.chart.data.datasets[0].data = data;
+    this.chart.data.datasets[0].borderColor = color;
+    this.chart.data.datasets[0].backgroundColor = `${color}22`;
     this.chart.update();
   }
 }

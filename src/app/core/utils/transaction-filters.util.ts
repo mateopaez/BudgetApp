@@ -15,6 +15,7 @@ export type SortOption =
 export interface TransactionFilterState {
   accountId: string;
   kind: KindFilter;
+  categoryId: string;
   hideCcAndRefunds: boolean;
   sort: SortOption;
 }
@@ -46,6 +47,22 @@ export function filterTransactions(
 
   if (state.kind !== 'all') {
     list = list.filter((tx) => tx.kind === state.kind);
+  }
+
+  if (state.categoryId === 'uncategorized') {
+    list = list.filter(
+      (tx) =>
+        tx.kind === 'expense' &&
+        !tx.categoryId &&
+        !tx.split?.length
+    );
+  } else if (state.categoryId) {
+    list = list.filter((tx) => {
+      if (tx.split?.length) {
+        return tx.split.some((line) => line.categoryId === state.categoryId);
+      }
+      return tx.categoryId === state.categoryId;
+    });
   }
 
   if (state.hideCcAndRefunds) {
