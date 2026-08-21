@@ -19,6 +19,17 @@ export interface Category {
   createdAt: Date;
 }
 
+export type BudgetPeriod = 'monthly' | 'weekly';
+
+export interface CategoryBudget {
+  id: string;
+  categoryId: string;
+  amount: number;
+  period: BudgetPeriod;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface SplitLine {
   categoryId: string;
   amount: number;
