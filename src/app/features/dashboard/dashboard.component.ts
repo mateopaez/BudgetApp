@@ -11,12 +11,14 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { BudgetService } from '../../core/services/budget.service';
 import { CategoryService } from '../../core/services/category.service';
+import { AccountService } from '../../core/services/account.service';
 import { DashboardService } from '../../core/services/dashboard.service';
 import { TransactionService } from '../../core/services/transaction.service';
 import {
   buildCategorySpendRows,
   UNCATEGORIZED_ID,
 } from '../../core/utils/budget.util';
+import { computeNetWorth } from '../../core/utils/balance-history.util';
 import {
   DateRangePreset,
   formatDateParam,
@@ -48,7 +50,12 @@ import { ChartDonutComponent } from '../../shared/chart-donut/chart-donut.compon
       <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div class="page-header">
           <h1 class="page-title">Dashboard</h1>
-          <p class="page-subtitle">{{ dateRange().label }} · charts update with your period</p>
+          <p class="page-subtitle">
+            {{ dateRange().label }} · net worth
+            <a routerLink="/accounts" class="font-semibold text-brand-700 hover:underline">{{
+              netWorth() | currency
+            }}</a>
+          </p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
           <mat-slide-toggle
@@ -57,6 +64,7 @@ import { ChartDonutComponent } from '../../shared/chart-donut/chart-donut.compon
           >
             Refunds offset spending
           </mat-slide-toggle>
+          <a mat-stroked-button routerLink="/calendar">Calendar</a>
           <a mat-stroked-button routerLink="/overview">This week</a>
         </div>
       </div>
@@ -365,6 +373,7 @@ export class DashboardComponent {
   private readonly router = inject(Router);
   private readonly categoryService = inject(CategoryService);
   private readonly budgetService = inject(BudgetService);
+  private readonly accountService = inject(AccountService);
   private readonly transactionService = inject(TransactionService);
   private readonly dashboardService = inject(DashboardService);
 
@@ -386,6 +395,7 @@ export class DashboardComponent {
     initialValue: [],
   });
   private readonly budgets = toSignal(this.budgetService.watchBudgets(), { initialValue: [] });
+  private readonly accounts = toSignal(this.accountService.watchAccounts(), { initialValue: [] });
   private readonly transactions = toSignal(this.transactionService.watchAllTransactions(), {
     initialValue: [],
   });
@@ -399,6 +409,8 @@ export class DashboardComponent {
     const f = this.periodValues();
     return resolveDateRange(f.period ?? 'last_3_months', f.from, f.to);
   });
+
+  readonly netWorth = computed(() => computeNetWorth(this.accounts(), this.transactions()));
 
   readonly summary = computed(() =>
     this.dashboardService.computePeriodSummary(

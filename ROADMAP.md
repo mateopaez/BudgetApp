@@ -160,24 +160,24 @@ Actionable breakdown of project ideas, grounded in the current codebase (Angular
 
 ### 5a. Recurring / scheduled items model
 
-- [ ] New collection `users/{uid}/scheduledItems/{id}`:
+- [x] New collection `users/{uid}/scheduledItems/{id}`:
   - `title`, `amount`, `kind` (`income` | `expense`), `categoryId?`, `accountId?`
   - `schedule`: `fixed` (specific dates) | `recurring` (monthly on day N, weekly on day N)
   - `nextDate`, `endDate?`, `isActive`
-- [ ] CRUD UI: “Add bill”, “Add paycheck”
+- [x] CRUD UI: “Add bill”, “Add paycheck”
 
 **Files:** new `scheduled-item.service.ts`, `models/index.ts`, `firestore.rules`, new `calendar.component.ts`
 
 ### 5b. Calendar views
 
-- [ ] **Month view**: grid with dots/amounts on days; click day for detail list
-- [ ] **Week view**: 7-column agenda with totals per day
-- [ ] Toggle between views; default to current week/month
-- [ ] Merge **actual transactions** (solid) and **scheduled** (outlined/dashed) on the same calendar
+- [x] **Month view**: grid with dots/amounts on days; click day for detail list
+- [x] **Week view**: 7-column agenda with totals per day
+- [x] Toggle between views; default to current week/month
+- [x] Merge **actual transactions** (solid) and **scheduled** (outlined/dashed) on the same calendar
 
 ### 5c. Reminders & cash-flow projection (stretch)
 
-- [ ] “Upcoming this week” sidebar: next 7 days of scheduled items + estimated running balance
+- [x] “Upcoming this week” sidebar: next 7 days of scheduled items + estimated running balance
 - [ ] Optional browser notification / email (much later)
 
 **Acceptance:** Rent on the 1st and paycheck on the 15th appear every month; user can switch week/month view.
@@ -192,20 +192,20 @@ Actionable breakdown of project ideas, grounded in the current codebase (Angular
 
 ### 6a. Net worth snapshot
 
-- [ ] **Net worth** = Σ(checking + savings) − Σ(credit card balances) — define sign convention for CC (positive balance = amount owed)
-- [ ] Show on Dashboard as a headline number
+- [x] **Net worth** = Σ(checking + savings) − Σ(credit card balances) — define sign convention for CC (positive balance = amount owed)
+- [x] Show on Dashboard as a headline number
 
 ### 6b. Balance over time chart
 
-- [ ] For each day/week in range, reconstruct balance from `openingBalance` + transactions up to that date (respect `openingDate` cutoff)
-- [ ] Line chart per account or stacked net worth
-- [ ] Compare two dates: “Jan 1 vs today” delta
+- [x] For each day/week in range, reconstruct balance from `openingBalance` + transactions up to that date (respect `openingDate` cutoff)
+- [x] Line chart per account or stacked net worth
+- [x] Compare two dates: “Jan 1 vs today” delta
 
 **Files:** new `balance-history.util.ts`, `dashboard.component.ts`
 
 ### 6c. Account comparison table
 
-- [ ] Side-by-side: account name, balance today, change MTD, change YTD
+- [x] Side-by-side: account name, balance today, change MTD, change YTD
 
 **Acceptance:** Chart shows checking balance rising after paycheck days.
 
@@ -222,7 +222,7 @@ Actionable breakdown of project ideas, grounded in the current codebase (Angular
   - Total spent vs weekly budget (monthly budget ÷ 4.33, or explicit weekly budgets later)
   - Per-category: spent / budget / remaining with over-budget highlighted red
   - Days remaining in week
-- [ ] Show income received this week vs expected (if scheduled items exist)
+- [x] Show income received this week vs expected (if scheduled items exist)
 - [ ] Optional: compare to **same week last month** (spend pace)
 
 **Files:** new `weekly-overview.component.ts` or extend `dashboard.component.ts`, `budget.util.ts`

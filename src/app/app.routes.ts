@@ -26,6 +26,11 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'calendar',
+        loadComponent: () =>
+          import('./features/calendar/calendar.component').then((m) => m.CalendarComponent),
+      },
+      {
         path: 'accounts',
         loadComponent: () =>
           import('./features/accounts/accounts.component').then((m) => m.AccountsComponent),

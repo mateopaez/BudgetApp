@@ -56,6 +56,8 @@ body {
 // ── Material overrides ─────────────────────────────────────────
 .mat-mdc-form-field {
   width: 100%;
+  position: relative;
+  z-index: 1;
 }
 
 .mat-mdc-form-field-infix {
@@ -67,8 +69,15 @@ body {
   overflow-y: auto;
 }
 
+.cdk-overlay-container {
+  z-index: 2000;
+}
+
+.cdk-overlay-pane.calendar-select-panel,
+.calendar-select-panel.mat-mdc-select-panel,
 .mat-mdc-select-panel,
 .mat-mdc-autocomplete-panel {
+  background: #ffffff !important;
   max-height: 280px !important;
 }
 

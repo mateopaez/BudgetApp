@@ -12,6 +12,14 @@ import { Account, AccountType } from '../../core/models';
 import { AccountService } from '../../core/services/account.service';
 import { TransactionService } from '../../core/services/transaction.service';
 import { computeAccountBalance } from '../../core/utils/balance.util';
+import {
+  buildAccountComparisonRows,
+  buildNetWorthSeries,
+  computeNetWorth,
+  computeNetWorthAsOf,
+} from '../../core/utils/balance-history.util';
+import { startOfDay } from '../../core/utils/date.util';
+import { ChartCardComponent } from '../../shared/chart-card/chart-card.component';
 
 @Component({
   selector: 'app-accounts',
@@ -27,15 +35,107 @@ import { computeAccountBalance } from '../../core/utils/balance.util';
     MatSelectModule,
     MatButtonModule,
     MatIconModule,
+    ChartCardComponent,
   ],
   template: `
     <div class="space-y-6">
       <div class="page-header">
         <h1 class="page-title">Accounts</h1>
-        <p class="page-subtitle">Checking, savings, and credit cards</p>
+        <p class="page-subtitle">Balances, net worth, and comparison</p>
       </div>
 
-      <!-- Add account form -->
+      <div class="grid gap-3 sm:grid-cols-3">
+        <div class="rounded-xl border border-brand-100 bg-brand-50 px-4 py-3">
+          <p class="text-xs font-medium uppercase tracking-wide text-brand-700">Net worth today</p>
+          <p
+            class="text-xl font-semibold"
+            [class]="netWorth() < 0 ? 'text-red-600' : 'text-brand-800'"
+          >
+            {{ netWorth() | currency }}
+          </p>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white px-4 py-3">
+          <p class="text-xs font-medium uppercase tracking-wide text-slate-500">vs Jan 1</p>
+          <p
+            class="text-xl font-semibold"
+            [class]="ytdDelta() < 0 ? 'text-red-600' : 'text-emerald-700'"
+          >
+            {{ ytdDelta() >= 0 ? '+' : '' }}{{ ytdDelta() | currency }}
+          </p>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white px-4 py-3">
+          <p class="text-xs font-medium uppercase tracking-wide text-slate-500">vs start of month</p>
+          <p
+            class="text-xl font-semibold"
+            [class]="mtdDelta() < 0 ? 'text-red-600' : 'text-emerald-700'"
+          >
+            {{ mtdDelta() >= 0 ? '+' : '' }}{{ mtdDelta() | currency }}
+          </p>
+        </div>
+      </div>
+
+      <app-chart-card
+        title="Net worth (last 90 days)"
+        [labels]="netWorthLabels()"
+        [data]="netWorthData()"
+        color="#7c3aed"
+      />
+
+      <div class="app-card overflow-hidden">
+        <div class="border-b border-brand-100 px-5 py-4">
+          <h3 class="text-sm font-semibold uppercase tracking-wide text-brand-800">
+            Account comparison
+          </h3>
+          <p class="mt-1 text-xs text-slate-500">
+            Credit card balances usually run negative when you owe money — net worth adds them as
+            liabilities automatically.
+          </p>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-[480px] text-sm">
+            <thead class="bg-brand-50/60 text-left text-xs uppercase tracking-wide text-slate-500">
+              <tr>
+                <th class="px-4 py-2 font-medium">Account</th>
+                <th class="px-4 py-2 font-medium">Type</th>
+                <th class="px-4 py-2 font-medium">Balance</th>
+                <th class="px-4 py-2 font-medium">MTD</th>
+                <th class="px-4 py-2 font-medium">YTD</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-brand-100">
+              @for (row of comparisonRows(); track row.account.id) {
+                <tr>
+                  <td class="px-4 py-2.5 font-medium text-midnight-900">{{ row.account.name }}</td>
+                  <td class="px-4 py-2.5 text-slate-500">{{ row.account.type | titlecase }}</td>
+                  <td
+                    class="px-4 py-2.5 font-semibold"
+                    [class]="row.balanceToday < 0 ? 'text-red-600' : 'text-brand-700'"
+                  >
+                    {{ row.balanceToday | currency }}
+                  </td>
+                  <td
+                    class="px-4 py-2.5"
+                    [class]="row.changeMtd < 0 ? 'text-red-600' : 'text-emerald-700'"
+                  >
+                    {{ row.changeMtd >= 0 ? '+' : '' }}{{ row.changeMtd | currency }}
+                  </td>
+                  <td
+                    class="px-4 py-2.5"
+                    [class]="row.changeYtd < 0 ? 'text-red-600' : 'text-emerald-700'"
+                  >
+                    {{ row.changeYtd >= 0 ? '+' : '' }}{{ row.changeYtd | currency }}
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="5" class="px-4 py-6 text-center text-slate-500">No accounts yet.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <mat-card class="app-card">
         <mat-card-content>
           <form class="grid gap-4 sm:grid-cols-2" [formGroup]="form" (ngSubmit)="save()">
@@ -71,7 +171,6 @@ import { computeAccountBalance } from '../../core/utils/balance.util';
         </mat-card-content>
       </mat-card>
 
-      <!-- Account list -->
       <div class="space-y-3">
         @for (account of accounts(); track account.id) {
           <div class="app-list-row flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -126,6 +225,44 @@ export class AccountsComponent {
     return new Map(
       this.accounts().map((account) => [account.id, computeAccountBalance(account, txs)])
     );
+  });
+
+  readonly netWorth = computed(() => computeNetWorth(this.accounts(), this.transactions()));
+
+  readonly comparisonRows = computed(() =>
+    buildAccountComparisonRows(this.accounts(), this.transactions())
+  );
+
+  private readonly netWorthSeries = computed(() => {
+    const end = startOfDay(new Date());
+    const start = new Date(end);
+    start.setDate(start.getDate() - 90);
+    return buildNetWorthSeries(this.accounts(), this.transactions(), start, end);
+  });
+
+  readonly netWorthLabels = computed(() => this.netWorthSeries().map((p) => p.label));
+  readonly netWorthData = computed(() => this.netWorthSeries().map((p) => p.netWorth));
+
+  readonly ytdDelta = computed(() => {
+    const today = startOfDay(new Date());
+    const jan1 = new Date(today.getFullYear(), 0, 1);
+    const startWorth = computeNetWorthAsOf(
+      this.accounts(),
+      this.transactions(),
+      new Date(jan1.getTime() - 1)
+    );
+    return this.netWorth() - startWorth;
+  });
+
+  readonly mtdDelta = computed(() => {
+    const today = startOfDay(new Date());
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const startWorth = computeNetWorthAsOf(
+      this.accounts(),
+      this.transactions(),
+      new Date(monthStart.getTime() - 1)
+    );
+    return this.netWorth() - startWorth;
   });
 
   balanceFor(accountId: string): number {

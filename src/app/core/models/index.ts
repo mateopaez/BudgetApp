@@ -94,3 +94,42 @@ export const DEFAULT_ACCOUNTS = [
   { name: 'Savings', type: 'savings' as const },
   { name: 'Credit Card', type: 'credit_card' as const },
 ] as const;
+
+export type ScheduledKind = 'income' | 'expense';
+export type ScheduleType = 'fixed' | 'monthly' | 'weekly';
+
+export interface ScheduledItem {
+  id: string;
+  title: string;
+  amount: number;
+  kind: ScheduledKind;
+  categoryId: string | null;
+  accountId: string | null;
+  scheduleType: ScheduleType;
+  /** 1–31 for monthly; clamped to month length when expanding. */
+  dayOfMonth: number | null;
+  /** 0 = Sunday … 6 = Saturday for weekly. */
+  dayOfWeek: number | null;
+  /** Single occurrence for fixed schedules. */
+  fixedDate: Date | null;
+  startDate: Date;
+  endDate: Date | null;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ScheduledItemInput {
+  title: string;
+  amount: number;
+  kind: ScheduledKind;
+  categoryId: string | null;
+  accountId: string | null;
+  scheduleType: ScheduleType;
+  dayOfMonth: number | null;
+  dayOfWeek: number | null;
+  fixedDate: Date | null;
+  startDate: Date;
+  endDate: Date | null;
+  isActive: boolean;
+}

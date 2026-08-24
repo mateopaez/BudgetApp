@@ -65,7 +65,7 @@ import { CategoryService } from '../../core/services/category.service';
           </button>
           <span class="ml-2 text-base font-semibold tracking-wide">Budget Tracker</span>
         </mat-toolbar>
-        <main class="mx-auto max-w-5xl p-4 pb-8 sm:p-6">
+        <main class="mx-auto max-w-6xl p-4 pb-8 sm:p-6">
           <router-outlet />
         </main>
       </mat-sidenav-content>
@@ -80,6 +80,7 @@ export class ShellComponent implements OnInit {
   readonly nav = [
     { path: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
     { path: '/overview', label: 'This week', icon: 'calendar_view_week' },
+    { path: '/calendar', label: 'Calendar', icon: 'calendar_month' },
     { path: '/accounts', label: 'Accounts', icon: 'account_balance_wallet' },
     { path: '/transactions', label: 'Transactions', icon: 'receipt_long' },
     { path: '/categories', label: 'Categories', icon: 'category' },
