@@ -1,5 +1,5 @@
 import { CurrencyPipe, DatePipe } from '@angular/common';
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, effect, inject, OnInit, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -46,6 +46,7 @@ type ImportStep = 'upload' | 'map' | 'review';
 type ImportReviewFilter = 'all' | 'ready' | 'duplicates';
 
 const IMPORT_REVIEW_PAGE_SIZE = 25;
+const TRANSACTION_LIST_PAGE_SIZE = 25;
 
 @Component({
   selector: 'app-transactions',
@@ -513,93 +514,185 @@ const IMPORT_REVIEW_PAGE_SIZE = 25;
         }
       </div>
 
-      <div class="space-y-3">
-        @for (tx of transactions(); track tx.id) {
-          <div class="app-list-row">
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div class="min-w-0 flex-1">
-                <div class="flex items-start gap-1">
-                  @if (editingId() === tx.id) {
-                    <mat-form-field class="min-w-0 flex-1">
-                      <mat-label>Merchant</mat-label>
-                      <input
-                        matInput
-                        [value]="editMerchant()"
-                        (input)="editMerchant.set($any($event.target).value)"
-                        (keydown.enter)="saveMerchant(tx.id)"
-                        (keydown.escape)="cancelEditMerchant()"
-                      />
-                    </mat-form-field>
-                    <button mat-icon-button color="primary" (click)="saveMerchant(tx.id)">
-                      <mat-icon>check</mat-icon>
-                    </button>
-                    <button mat-icon-button (click)="cancelEditMerchant()">
-                      <mat-icon>close</mat-icon>
-                    </button>
-                  } @else {
-                    <p class="min-w-0 flex-1 font-medium text-ink">{{ tx.merchant }}</p>
-                    <button mat-icon-button class="shrink-0" (click)="startEditMerchant(tx)">
-                      <mat-icon class="!text-base">edit</mat-icon>
-                    </button>
-                  }
-                </div>
-                @if (tx.description) {
-                  <p class="mt-0.5 text-sm text-slate-500">{{ tx.description }}</p>
-                }
-                <p class="mt-1 text-sm text-slate-500">
-                  {{ tx.postedAt | date: 'mediumDate' }} · {{ accountName(tx.accountId) }} · {{ tx.kind }}
-                  @if (isInbox(tx)) {
-                    <span class="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-                      Inbox
-                    </span>
-                  }
-                </p>
-                <p class="mt-1 text-lg font-semibold" [class]="amountClass(tx)">
-                  {{ tx.amount | currency }}
-                </p>
-                @if (tx.split?.length) {
-                  <ul class="mt-2 space-y-0.5 text-xs text-slate-500">
-                    @for (line of tx.split; track $index) {
-                      <li>{{ categoryName(line.categoryId) }}: {{ line.amount | currency }}</li>
+      <div class="list-shell">
+        @if (transactions().length) {
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
+            <p class="text-sm text-slate-500">
+              Showing {{ listRangeLabel() }} of {{ transactions().length }}
+            </p>
+            <div class="flex gap-2">
+              <button
+                mat-stroked-button
+                type="button"
+                [disabled]="listPage() === 0"
+                (click)="prevListPage()"
+              >
+                Previous
+              </button>
+              <button
+                mat-stroked-button
+                type="button"
+                [disabled]="listPage() >= listPageCount() - 1"
+                (click)="nextListPage()"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        }
+
+        @for (tx of pagedTransactions(); track tx.id) {
+          <div
+            class="list-row transition-colors hover:bg-action-soft/30"
+            [class.bg-amber-50]="isInbox(tx)"
+          >
+            <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_15rem_7rem_auto] lg:items-center">
+              <div class="min-w-0">
+                <div class="flex min-w-0 items-start gap-2">
+                  <span
+                    class="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm"
+                    [class]="kindBadgeClass(tx)"
+                    aria-hidden="true"
+                  >
+                    <mat-icon class="!text-base">{{ kindIcon(tx) }}</mat-icon>
+                  </span>
+
+                  <div class="min-w-0 flex-1">
+                    @if (editingId() === tx.id) {
+                      <div class="flex items-start gap-1">
+                        <mat-form-field class="min-w-0 flex-1">
+                          <mat-label>Merchant</mat-label>
+                          <input
+                            matInput
+                            [value]="editMerchant()"
+                            (input)="editMerchant.set($any($event.target).value)"
+                            (keydown.enter)="saveMerchant(tx.id)"
+                            (keydown.escape)="cancelEditMerchant()"
+                          />
+                        </mat-form-field>
+                        <button mat-icon-button color="primary" (click)="saveMerchant(tx.id)" aria-label="Save merchant">
+                          <mat-icon>check</mat-icon>
+                        </button>
+                        <button mat-icon-button (click)="cancelEditMerchant()" aria-label="Cancel merchant edit">
+                          <mat-icon>close</mat-icon>
+                        </button>
+                      </div>
+                    } @else {
+                      <div class="flex min-w-0 items-center gap-2">
+                        <p class="min-w-0 truncate font-semibold text-ink">{{ tx.merchant }}</p>
+                        @if (isInbox(tx)) {
+                          <span class="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                            Review
+                          </span>
+                        }
+                      </div>
                     }
-                  </ul>
+
+                    <p class="mt-0.5 truncate text-sm text-ink-muted">
+                      {{ tx.postedAt | date: 'mediumDate' }} · {{ accountName(tx.accountId) }} · {{ kindLabel(tx) }}
+                    </p>
+                    @if (tx.description) {
+                      <p class="mt-0.5 truncate text-sm text-slate-500">{{ tx.description }}</p>
+                    }
+                    @if (tx.split?.length) {
+                      <p class="mt-1 text-xs font-medium text-action">Split across {{ tx.split!.length }} categories</p>
+                    }
+                  </div>
+                </div>
+              </div>
+
+              <div class="lg:justify-self-stretch">
+                @if (tx.kind === 'expense' || tx.kind === 'income') {
+                  <mat-form-field class="compact-field">
+                    <mat-label>Category</mat-label>
+                    <mat-select
+                      [value]="categoryValue(tx)"
+                      [compareWith]="compareIds"
+                      (selectionChange)="updateCategory(tx.id, $event.value)"
+                      [disabled]="!!pendingCategoryFor(tx.id)"
+                    >
+                      <mat-option [value]="null">Uncategorized</mat-option>
+                      @for (c of selectableCategories(tx); track c.id) {
+                        <mat-option [value]="c.id">{{ c.name }}</mat-option>
+                      }
+                    </mat-select>
+                    @if (pendingCategoryFor(tx.id)) {
+                      <mat-hint>Saving…</mat-hint>
+                    }
+                  </mat-form-field>
+                } @else {
+                  <span class="inline-flex min-h-11 items-center rounded-xl border border-line bg-slate-50 px-3 text-sm text-ink-muted">
+                    No category
+                  </span>
                 }
               </div>
 
-              <div class="flex w-full flex-col gap-3 lg:w-72 lg:shrink-0">
-                <mat-form-field>
-                  <mat-label>Category</mat-label>
-                  <mat-select
-                    [value]="categoryValue(tx)"
-                    [compareWith]="compareIds"
-                    (selectionChange)="updateCategory(tx.id, $event.value)"
-                    [disabled]="tx.kind !== 'expense' && tx.kind !== 'income'"
-                  >
-                    <mat-option [value]="null">—</mat-option>
-                    @for (c of selectableCategories(tx); track c.id) {
-                      <mat-option [value]="c.id">{{ c.name }}</mat-option>
-                    }
-                  </mat-select>
-                </mat-form-field>
-                <div class="flex flex-wrap gap-2">
-                  <button mat-stroked-button (click)="openEdit(tx)">Edit</button>
-                  @if (tx.kind === 'expense') {
-                    <button mat-stroked-button (click)="openSplit(tx)">Split</button>
-                  }
-                  <button mat-icon-button color="warn" (click)="remove(tx.id)">
-                    <mat-icon>delete</mat-icon>
+              <p class="money text-left text-lg font-semibold lg:text-right" [class]="amountClass(tx)">
+                {{ tx.amount | currency }}
+              </p>
+
+              <div class="flex items-center gap-1 lg:justify-end">
+                @if (editingId() !== tx.id) {
+                  <button mat-icon-button (click)="startEditMerchant(tx)" [attr.aria-label]="'Rename ' + tx.merchant">
+                    <mat-icon>drive_file_rename_outline</mat-icon>
                   </button>
-                </div>
+                }
+                <button mat-icon-button (click)="openEdit(tx)" [attr.aria-label]="'Edit ' + tx.merchant">
+                  <mat-icon>edit</mat-icon>
+                </button>
+                @if (tx.kind === 'expense') {
+                  <button mat-icon-button (click)="openSplit(tx)" [attr.aria-label]="'Split ' + tx.merchant">
+                    <mat-icon>call_split</mat-icon>
+                  </button>
+                }
+                <button mat-icon-button color="warn" (click)="remove(tx.id)" [attr.aria-label]="'Delete ' + tx.merchant">
+                  <mat-icon>delete</mat-icon>
+                </button>
               </div>
             </div>
           </div>
         } @empty {
-          <div class="panel p-8 text-center">
-            <p class="font-semibold text-ink">No activity matches these filters.</p>
-            <p class="mt-1 text-sm text-ink-muted">Try clearing filters, widening the date range, or importing recent transactions.</p>
-            <div class="mt-4 flex justify-center gap-2">
-              <button mat-stroked-button (click)="clearFilters()">Clear filters</button>
-              <button mat-flat-button color="primary" (click)="openAdd()">Add transaction</button>
+          <div class="panel m-0 rounded-none border-0 p-8 text-center shadow-none">
+            <p class="font-semibold text-ink">{{ emptyStateTitle() }}</p>
+            <p class="mx-auto mt-1 max-w-md text-sm text-ink-muted">{{ emptyStateBody() }}</p>
+            <div class="mt-4 flex flex-wrap justify-center gap-2">
+              @if (hasActiveFilters()) {
+                <button mat-stroked-button (click)="clearFilters()">Clear filters</button>
+              }
+              <button mat-stroked-button (click)="toggleImport()">
+                <mat-icon>upload_file</mat-icon>
+                Import CSV
+              </button>
+              <button mat-flat-button color="primary" (click)="openAdd()">
+                <mat-icon>add</mat-icon>
+                Add transaction
+              </button>
+            </div>
+          </div>
+        }
+
+        @if (transactions().length > transactionListPageSize) {
+          <div class="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3">
+            <p class="text-sm text-slate-500">
+              Page {{ listPage() + 1 }} of {{ listPageCount() }}
+            </p>
+            <div class="flex gap-2">
+              <button
+                mat-stroked-button
+                type="button"
+                [disabled]="listPage() === 0"
+                (click)="prevListPage()"
+              >
+                Previous
+              </button>
+              <button
+                mat-stroked-button
+                type="button"
+                [disabled]="listPage() >= listPageCount() - 1"
+                (click)="nextListPage()"
+              >
+                Next
+              </button>
             </div>
           </div>
         }
@@ -608,6 +701,8 @@ const IMPORT_REVIEW_PAGE_SIZE = 25;
   `,
 })
 export class TransactionsComponent implements OnInit {
+  readonly transactionListPageSize = TRANSACTION_LIST_PAGE_SIZE;
+
   private readonly fb = inject(FormBuilder);
   private readonly accountService = inject(AccountService);
   private readonly categoryService = inject(CategoryService);
@@ -767,6 +862,42 @@ export class TransactionsComponent implements OnInit {
     return list;
   });
 
+  readonly listPage = signal(0);
+
+  readonly listPageCount = computed(() =>
+    Math.max(1, Math.ceil(this.transactions().length / TRANSACTION_LIST_PAGE_SIZE))
+  );
+
+  readonly pagedTransactions = computed(() => {
+    const page = Math.min(this.listPage(), this.listPageCount() - 1);
+    const start = page * TRANSACTION_LIST_PAGE_SIZE;
+    return this.transactions().slice(start, start + TRANSACTION_LIST_PAGE_SIZE);
+  });
+
+  readonly listRangeLabel = computed(() => {
+    const total = this.transactions().length;
+    if (!total) return '0–0';
+    const page = Math.min(this.listPage(), this.listPageCount() - 1);
+    const start = page * TRANSACTION_LIST_PAGE_SIZE + 1;
+    const end = Math.min(total, start + TRANSACTION_LIST_PAGE_SIZE - 1);
+    return `${start}–${end}`;
+  });
+
+  constructor() {
+    effect(() => {
+      this.filterValues();
+      this.listPage.set(0);
+    });
+  }
+
+  prevListPage(): void {
+    this.listPage.update((page) => Math.max(0, page - 1));
+  }
+
+  nextListPage(): void {
+    this.listPage.update((page) => Math.min(this.listPageCount() - 1, page + 1));
+  }
+
   readonly inboxCount = computed(() =>
     countUncategorizedExpenses(this.allTransactions(), this.dateRange())
   );
@@ -898,6 +1029,82 @@ export class TransactionsComponent implements OnInit {
 
   categoryName(id: string): string {
     return this.categories().find((c) => c.id === id)?.name ?? 'Unknown';
+  }
+
+  pendingCategoryFor(id: string): string | null {
+    return this.pendingCategories()[id] ?? null;
+  }
+
+  hasActiveFilters(): boolean {
+    const f = this.filterValues();
+    return !!(
+      (f.search ?? '').trim() ||
+      f.accountId ||
+      f.period !== 'all' ||
+      f.from ||
+      f.to ||
+      f.kind !== 'all' ||
+      f.categoryId ||
+      f.hideCcAndRefunds ||
+      f.sort !== 'date_desc'
+    );
+  }
+
+  emptyStateTitle(): string {
+    if (!this.transactionCount()) return 'No transactions yet';
+    if (this.filterValues().categoryId === 'uncategorized') return 'No transactions need review';
+    return 'No activity matches these filters';
+  }
+
+  emptyStateBody(): string {
+    if (!this.transactionCount()) {
+      return 'Import a CSV or add a transaction manually to start tracking spending, income, and balances.';
+    }
+    if (this.filterValues().categoryId === 'uncategorized') {
+      return 'Everything in this view is categorized. Clear filters to return to all activity.';
+    }
+    return 'Try clearing filters, widening the date range, or searching for a different merchant.';
+  }
+
+  kindLabel(tx: Transaction): string {
+    switch (tx.kind) {
+      case 'cc_payment':
+        return 'Credit card payment';
+      case 'refund':
+        return 'Refund';
+      default:
+        return tx.kind.charAt(0).toUpperCase() + tx.kind.slice(1);
+    }
+  }
+
+  kindIcon(tx: Transaction): string {
+    switch (tx.kind) {
+      case 'income':
+        return 'south_west';
+      case 'expense':
+        return 'north_east';
+      case 'transfer':
+        return 'sync_alt';
+      case 'cc_payment':
+        return 'credit_card';
+      case 'refund':
+        return 'undo';
+    }
+  }
+
+  kindBadgeClass(tx: Transaction): string {
+    switch (tx.kind) {
+      case 'income':
+        return 'bg-emerald-100 text-emerald-700';
+      case 'expense':
+        return 'bg-red-100 text-red-700';
+      case 'refund':
+        return 'bg-sky-100 text-sky-700';
+      case 'cc_payment':
+        return 'bg-amber-100 text-amber-700';
+      case 'transfer':
+        return 'bg-slate-100 text-slate-600';
+    }
   }
 
   selectableCategories(tx: Transaction): Category[] {
@@ -1072,7 +1279,10 @@ export class TransactionsComponent implements OnInit {
 
   openAdd(): void {
     if (!this.accounts().length) {
-      alert('Create an account first (Checking, Savings, or Credit Card).');
+      const ref = this.snack.open('Add an account before recording transactions.', 'Add account', {
+        duration: 6000,
+      });
+      ref.onAction().subscribe(() => void this.router.navigate(['/accounts']));
       return;
     }
     const ref = this.dialog.open(TransactionFormDialogComponent, {
@@ -1122,6 +1332,13 @@ export class TransactionsComponent implements OnInit {
     this.pendingCategories.update((map) => ({ ...map, [id]: categoryId }));
     try {
       await this.transactionService.update(id, { categoryId });
+    } catch (e: unknown) {
+      console.error('Failed to update category', e);
+      this.snack.open(
+        e instanceof Error ? e.message : 'Could not save category. Please try again.',
+        'Dismiss',
+        { duration: 5000 }
+      );
     } finally {
       this.pendingCategories.update((map) => {
         const next = { ...map };

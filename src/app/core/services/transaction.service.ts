@@ -14,6 +14,8 @@ import {
   updateDoc,
   where,
   writeBatch,
+  type DocumentData,
+  type UpdateData,
 } from '@angular/fire/firestore';
 import { Observable } from 'rxjs';
 import { ParsedImportRow, SplitLine, Transaction, TransactionKind } from '../models';
@@ -201,14 +203,28 @@ export class TransactionService {
   async update(id: string, patch: Partial<TransactionInput>): Promise<void> {
     const uid = this.auth.uid();
     if (!uid) throw new Error('Not authenticated');
-    await updateDoc(doc(this.firestore, `users/${uid}/transactions/${id}`), {
-      ...patch,
-      postedAt: patch.postedAt ? toTimestamp(startOfDay(patch.postedAt)) : undefined,
-      merchant: patch.merchant ? normalizeMerchant(patch.merchant) : undefined,
-      description:
-        patch.description !== undefined ? patch.description?.trim() || null : undefined,
+
+    // Firestore rejects `undefined` field values — only send keys that are present.
+    const data: UpdateData<DocumentData> = {
       updatedAt: serverTimestamp(),
-    });
+    };
+
+    if (patch.accountId !== undefined) data['accountId'] = patch.accountId;
+    if (patch.postedAt !== undefined) {
+      data['postedAt'] = toTimestamp(startOfDay(patch.postedAt));
+    }
+    if (patch.merchant !== undefined) data['merchant'] = normalizeMerchant(patch.merchant);
+    if (patch.description !== undefined) {
+      data['description'] = patch.description?.trim() || null;
+    }
+    if (patch.amount !== undefined) data['amount'] = patch.amount;
+    if (patch.kind !== undefined) data['kind'] = patch.kind;
+    if (patch.categoryId !== undefined) data['categoryId'] = patch.categoryId;
+    if (patch.split !== undefined) data['split'] = patch.split;
+    if (patch.importHash !== undefined) data['importHash'] = patch.importHash;
+    if (patch.scheduledItemId !== undefined) data['scheduledItemId'] = patch.scheduledItemId;
+
+    await updateDoc(doc(this.firestore, `users/${uid}/transactions/${id}`), data);
   }
 
   async remove(id: string): Promise<void> {
