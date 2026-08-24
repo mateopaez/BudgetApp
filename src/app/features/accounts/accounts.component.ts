@@ -178,47 +178,65 @@ import { confirmDialog } from '../../shared/confirm-dialog/confirm-dialog.compon
       </div>
 
       @if (showAccountForm() || editingId()) {
-        <mat-card class="app-card">
-          <mat-card-header>
-            <mat-card-title class="!text-ink">
-              {{ editingId() ? 'Edit account' : 'Add account' }}
-            </mat-card-title>
-            <mat-card-subtitle>
-              Start with the balance from the date you want BudgetApp to begin tracking this account.
-            </mat-card-subtitle>
-          </mat-card-header>
-          <mat-card-content>
-            <form class="grid gap-4 sm:grid-cols-2" [formGroup]="form" (ngSubmit)="save()">
-              <mat-form-field>
-                <mat-label>Name</mat-label>
-                <input matInput formControlName="name" autocomplete="off" />
-              </mat-form-field>
-              <mat-form-field>
-                <mat-label>Type</mat-label>
-                <mat-select formControlName="type">
-                  <mat-option value="checking">Checking</mat-option>
-                  <mat-option value="savings">Savings</mat-option>
-                  <mat-option value="credit_card">Credit card</mat-option>
-                </mat-select>
-              </mat-form-field>
-              <mat-form-field>
-                <mat-label>Opening balance</mat-label>
-                <input matInput type="number" step="0.01" formControlName="openingBalance" />
-                <mat-hint>Use a negative balance for credit card debt.</mat-hint>
-              </mat-form-field>
-              <mat-form-field>
-                <mat-label>Opening date</mat-label>
-                <input matInput type="date" formControlName="openingDate" />
-              </mat-form-field>
-              <div class="flex flex-wrap gap-2 sm:col-span-2">
-                <button mat-flat-button color="primary" type="submit">
-                  {{ editingId() ? 'Update account' : 'Add account' }}
+        <div
+          class="fixed inset-0 z-50 flex items-end justify-center bg-ink/35 p-0 backdrop-blur-[2px] sm:items-center sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          [attr.aria-label]="editingId() ? 'Edit account' : 'Add account'"
+          (click)="cancelEdit()"
+        >
+          <mat-card
+            class="app-card max-h-[92vh] w-full overflow-hidden !rounded-b-none !shadow-floating sm:max-w-xl sm:!rounded-3xl"
+            (click)="$event.stopPropagation()"
+          >
+            <mat-card-header class="border-b border-line !px-5 !py-4">
+              <div class="flex w-full items-start justify-between gap-4">
+                <div>
+                  <mat-card-title class="!text-ink">
+                    {{ editingId() ? 'Edit account' : 'Add account' }}
+                  </mat-card-title>
+                  <mat-card-subtitle>
+                    Start with the balance from the date you want BudgetApp to begin tracking this account.
+                  </mat-card-subtitle>
+                </div>
+                <button mat-icon-button type="button" (click)="cancelEdit()" aria-label="Close account form">
+                  <mat-icon>close</mat-icon>
                 </button>
-                <button mat-stroked-button type="button" (click)="cancelEdit()">Cancel</button>
               </div>
-            </form>
-          </mat-card-content>
-        </mat-card>
+            </mat-card-header>
+            <mat-card-content class="max-h-[calc(92vh-6rem)] overflow-y-auto !p-5">
+              <form class="grid gap-4 sm:grid-cols-2" [formGroup]="form" (ngSubmit)="save()">
+                <mat-form-field>
+                  <mat-label>Name</mat-label>
+                  <input matInput formControlName="name" autocomplete="off" />
+                </mat-form-field>
+                <mat-form-field>
+                  <mat-label>Type</mat-label>
+                  <mat-select formControlName="type">
+                    <mat-option value="checking">Checking</mat-option>
+                    <mat-option value="savings">Savings</mat-option>
+                    <mat-option value="credit_card">Credit card</mat-option>
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field>
+                  <mat-label>Opening balance</mat-label>
+                  <input matInput type="number" step="0.01" formControlName="openingBalance" />
+                  <mat-hint>Use a negative balance for credit card debt.</mat-hint>
+                </mat-form-field>
+                <mat-form-field>
+                  <mat-label>Opening date</mat-label>
+                  <input matInput type="date" formControlName="openingDate" />
+                </mat-form-field>
+                <div class="sticky bottom-0 -mx-5 -mb-5 flex flex-wrap justify-end gap-2 border-t border-line bg-surface px-5 py-4 sm:col-span-2">
+                  <button mat-stroked-button type="button" (click)="cancelEdit()">Cancel</button>
+                  <button mat-flat-button color="primary" type="submit" [disabled]="form.invalid">
+                    {{ editingId() ? 'Update account' : 'Add account' }}
+                  </button>
+                </div>
+              </form>
+            </mat-card-content>
+          </mat-card>
+        </div>
       }
 
       <div class="space-y-3">
