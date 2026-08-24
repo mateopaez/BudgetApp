@@ -95,12 +95,12 @@ type ImportStep = 'upload' | 'map' | 'review';
 
       @if (showImport()) {
         <mat-card class="app-card">
-          <mat-card-content class="space-y-4">
+          <mat-card-content class="space-y-5">
             <div class="flex items-start justify-between gap-3">
               <div>
-                <p class="font-medium text-ink">Import CSV</p>
-                <p class="mt-1 text-xs text-slate-500">
-                  Step through upload, column mapping, duplicate review, and import. CSVs are parsed in your browser.
+                <p class="font-semibold text-ink">Import transactions</p>
+                <p class="mt-1 max-w-2xl text-sm text-slate-500">
+                  Upload a CSV, verify the column mapping, then review duplicates before anything is saved.
                 </p>
               </div>
               <button mat-icon-button aria-label="Close import" (click)="closeImport()">
@@ -108,31 +108,52 @@ type ImportStep = 'upload' | 'map' | 'review';
               </button>
             </div>
 
-            <form [formGroup]="importForm">
+            <div class="grid gap-2 sm:grid-cols-3" aria-label="Import steps">
+              <div class="rounded-2xl border px-3 py-2" [class]="importStepClass('upload')">
+                <p class="text-xs font-semibold uppercase tracking-wide">Step 1</p>
+                <p class="text-sm font-semibold">Upload</p>
+              </div>
+              <div class="rounded-2xl border px-3 py-2" [class]="importStepClass('map')">
+                <p class="text-xs font-semibold uppercase tracking-wide">Step 2</p>
+                <p class="text-sm font-semibold">Map columns</p>
+              </div>
+              <div class="rounded-2xl border px-3 py-2" [class]="importStepClass('review')">
+                <p class="text-xs font-semibold uppercase tracking-wide">Step 3</p>
+                <p class="text-sm font-semibold">Review</p>
+              </div>
+            </div>
+
+            <form [formGroup]="importForm" class="rounded-2xl border border-line bg-white p-4">
               <mat-form-field>
-                <mat-label>Account</mat-label>
+                <mat-label>Import into account</mat-label>
                 <mat-select formControlName="accountId" (selectionChange)="onImportAccountChange()">
                   @for (a of accounts(); track a.id) {
                     <mat-option [value]="a.id">{{ a.name }} ({{ a.type }})</mat-option>
                   }
                 </mat-select>
+                <mat-hint>Transactions will be attached to this account.</mat-hint>
               </mat-form-field>
             </form>
 
             @if (importStep() === 'upload') {
               <label
-                class="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-brand-200 bg-action-soft p-8 text-center transition-colors hover:border-brand-400 hover:bg-action-soft/50"
-                [class.pointer-events-none]="parsing()"
-                [class.opacity-60]="parsing()"
+                class="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-line bg-action-soft/60 p-8 text-center transition-colors hover:border-action hover:bg-action-soft"
+                [class.pointer-events-none]="parsing() || importForm.invalid"
+                [class.opacity-60]="parsing() || importForm.invalid"
               >
-                <span class="font-medium text-ink">Tap to upload CSV</span>
-                <span class="mt-1 text-xs text-slate-500">Raw file is not stored</span>
+                <mat-icon class="!mb-2 !h-8 !w-8 !text-3xl !text-action">upload_file</mat-icon>
+                <span class="font-semibold text-ink">
+                  {{ importForm.invalid ? 'Choose an account first' : 'Upload CSV file' }}
+                </span>
+                <span class="mt-1 max-w-sm text-sm text-slate-500">
+                  CSV files are parsed in your browser. Only confirmed transactions are saved.
+                </span>
                 <input
                   #csvInput
                   type="file"
                   accept=".csv"
                   class="hidden"
-                  [disabled]="parsing()"
+                  [disabled]="parsing() || importForm.invalid"
                   (change)="onImportFile($event)"
                 />
               </label>
@@ -149,20 +170,41 @@ type ImportStep = 'upload' | 'map' | 'review';
             }
 
             @if (parsing() || importing()) {
-              <div class="space-y-2">
-                <div class="flex items-center justify-between text-sm text-slate-600">
+              <div class="rounded-2xl border border-line bg-white p-4">
+                <div class="mb-2 flex items-center justify-between text-sm text-slate-600">
                   <span>{{ importProgress().message }}</span>
                   <span>{{ importProgress().progress }}%</span>
                 </div>
                 <mat-progress-bar mode="determinate" [value]="importProgress().progress" />
               </div>
             } @else if (importStatus()) {
-              <p class="text-sm text-slate-600">{{ importStatus() }}</p>
+              <div class="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
+                <p class="font-semibold text-emerald-800">{{ importStatus() }}</p>
+                <p class="mt-1 text-sm text-emerald-700">Review uncategorized rows next to keep reports accurate.</p>
+                <button mat-stroked-button type="button" class="!mt-3" (click)="showInbox()">
+                  Review uncategorized
+                </button>
+              </div>
             }
           </mat-card-content>
         </mat-card>
 
         @if (importStep() === 'review' && importPreview().length) {
+          <div class="grid gap-3 sm:grid-cols-3">
+            <div class="metric">
+              <p class="kicker">Rows reviewed</p>
+              <p class="money mt-1 text-2xl font-semibold text-ink">{{ importPreview().length }}</p>
+            </div>
+            <div class="metric">
+              <p class="kicker">Ready to import</p>
+              <p class="money mt-1 text-2xl font-semibold text-action">{{ importNewCount() }}</p>
+            </div>
+            <div class="metric">
+              <p class="kicker">Duplicates skipped</p>
+              <p class="money mt-1 text-2xl font-semibold text-amber-700">{{ importDuplicateCount() }}</p>
+            </div>
+          </div>
+
           <div class="app-card overflow-x-auto">
             <table mat-table [dataSource]="importPreview()" class="w-full min-w-[640px]">
               <ng-container matColumnDef="postedAt">
@@ -186,9 +228,9 @@ type ImportStep = 'upload' | 'map' | 'review';
                 <td mat-cell *matCellDef="let row">
                   <span
                     class="font-medium"
-                    [class]="row.isDuplicate ? 'text-amber-600' : 'text-brand-600'"
+                    [class]="row.isDuplicate ? 'text-amber-600' : 'text-action'"
                   >
-                    {{ row.isDuplicate ? 'Duplicate (skip)' : 'New' }}
+                    {{ row.isDuplicate ? 'Already imported, skipped' : 'Ready' }}
                   </span>
                 </td>
               </ng-container>
@@ -199,11 +241,16 @@ type ImportStep = 'upload' | 'map' | 'review';
 
           <div class="flex flex-wrap items-center gap-3">
             <button mat-stroked-button type="button" (click)="backToMapping()">Back to mapping</button>
-            <button mat-flat-button color="primary" (click)="confirmImport()" [disabled]="importing()">
-              Import {{ importNewCount() }} transactions
+            <button
+              mat-flat-button
+              color="primary"
+              (click)="confirmImport()"
+              [disabled]="importing() || importNewCount() === 0"
+            >
+              Import {{ importNewCount() }} new transactions
             </button>
             <p class="text-sm text-slate-500">
-              {{ importDuplicateCount() }} duplicates will be skipped
+              {{ importDuplicateCount() }} duplicates will be skipped automatically.
             </p>
           </div>
         }
@@ -610,6 +657,15 @@ export class TransactionsComponent implements OnInit {
         replaceUrl: true,
       });
     });
+  }
+
+  importStepClass(step: ImportStep): string {
+    const order: ImportStep[] = ['upload', 'map', 'review'];
+    const current = order.indexOf(this.importStep());
+    const target = order.indexOf(step);
+    if (target < current) return 'border-action bg-action-soft text-action';
+    if (target === current) return 'border-action bg-white text-action shadow-panel';
+    return 'border-line bg-white text-slate-500';
   }
 
   private isDateRangePreset(value: string): value is DateRangePreset {

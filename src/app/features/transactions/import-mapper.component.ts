@@ -32,7 +32,32 @@ import { ImportService } from '../../core/services/import.service';
     MatTableModule,
   ],
   template: `
-    <div class="space-y-4">
+    <div class="space-y-5">
+      <div class="rounded-2xl border border-line bg-white p-4">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p class="font-semibold text-ink">Map your CSV columns</p>
+            <p class="mt-1 text-sm text-slate-500">
+              Confirm the required fields first. Optional fields improve descriptions and payment detection.
+            </p>
+          </div>
+          <div class="rounded-xl border px-3 py-2" [class]="mappingError() ? 'border-red-100 bg-red-50' : previewErrorCount() ? 'border-amber-100 bg-amber-50' : 'border-emerald-100 bg-emerald-50'">
+            <p class="text-xs font-semibold uppercase tracking-wide" [class]="mappingError() ? 'text-red-700' : previewErrorCount() ? 'text-amber-700' : 'text-emerald-700'">
+              Mapping check
+            </p>
+            <p class="text-sm font-semibold" [class]="mappingError() ? 'text-red-700' : previewErrorCount() ? 'text-amber-700' : 'text-emerald-700'">
+              @if (mappingError()) {
+                Needs setup
+              } @else if (previewErrorCount()) {
+                {{ previewErrorCount() }} preview issues
+              } @else {
+                Looks ready
+              }
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div class="grid gap-4 sm:grid-cols-2">
         <mat-form-field>
           <mat-label>Import format</mat-label>
@@ -62,21 +87,46 @@ import { ImportService } from '../../core/services/import.service';
         Detect credit card payments from Type / merchant
       </mat-slide-toggle>
 
-      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        @for (field of mappingFields; track field.key) {
-          <mat-form-field>
-            <mat-label>{{ field.label }}</mat-label>
-            <mat-select
-              [value]="profile().mapping[field.key]"
-              (selectionChange)="updateMapping(field.key, $event.value)"
-            >
-              <mat-option [value]="null">— Not mapped —</mat-option>
-              @for (header of headers(); track header) {
-                <mat-option [value]="header">{{ header }}</mat-option>
-              }
-            </mat-select>
-          </mat-form-field>
-        }
+      <div class="space-y-3">
+        <div>
+          <p class="kicker">Required mapping</p>
+          <div class="mt-2 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            @for (field of requiredMappingFields; track field.key) {
+              <mat-form-field>
+                <mat-label>{{ field.label }}</mat-label>
+                <mat-select
+                  [value]="profile().mapping[field.key]"
+                  (selectionChange)="updateMapping(field.key, $event.value)"
+                >
+                  <mat-option [value]="null">Not mapped</mat-option>
+                  @for (header of headers(); track header) {
+                    <mat-option [value]="header">{{ header }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+            }
+          </div>
+        </div>
+
+        <div>
+          <p class="kicker">Optional mapping</p>
+          <div class="mt-2 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            @for (field of optionalMappingFields; track field.key) {
+              <mat-form-field>
+                <mat-label>{{ field.label }}</mat-label>
+                <mat-select
+                  [value]="profile().mapping[field.key]"
+                  (selectionChange)="updateMapping(field.key, $event.value)"
+                >
+                  <mat-option [value]="null">Not mapped</mat-option>
+                  @for (header of headers(); track header) {
+                    <mat-option [value]="header">{{ header }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+            }
+          </div>
+        </div>
       </div>
 
       @if (mappingError()) {
@@ -84,7 +134,14 @@ import { ImportService } from '../../core/services/import.service';
       }
 
       <div>
-        <p class="mb-2 text-sm font-medium text-ink">Preview (first 5 rows)</p>
+        <div class="mb-2 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p class="text-sm font-semibold text-ink">Preview first 5 rows</p>
+            <p class="text-xs text-slate-500">
+              {{ previewOkCount() }} look ready · {{ previewErrorCount() }} need attention
+            </p>
+          </div>
+        </div>
         <div class="overflow-x-auto rounded-xl border border-line">
           <table mat-table [dataSource]="previewLines()" class="w-full min-w-[640px]">
             <ng-container matColumnDef="row">
@@ -125,7 +182,7 @@ import { ImportService } from '../../core/services/import.service';
                 @if (row.error) {
                   <span class="font-medium text-red-600">{{ row.error }}</span>
                 } @else {
-                  <span class="font-medium text-brand-600">OK</span>
+                  <span class="font-medium text-action">Ready</span>
                 }
               </td>
             </ng-container>
@@ -184,15 +241,18 @@ export class ImportMapperComponent {
 
   readonly saveNameControl = this.fb.nonNullable.control('');
 
-  readonly mappingFields: { key: keyof ImportColumnMapping; label: string }[] = [
-    { key: 'date', label: 'Date (required)' },
-    { key: 'merchant', label: 'Merchant / Description (required)' },
-    { key: 'amount', label: 'Amount' },
-    { key: 'debit', label: 'Debit' },
-    { key: 'credit', label: 'Credit' },
+  readonly requiredMappingFields: { key: keyof ImportColumnMapping; label: string }[] = [
+    { key: 'date', label: 'Date' },
+    { key: 'merchant', label: 'Merchant or description' },
+    { key: 'amount', label: 'Single amount column' },
+    { key: 'debit', label: 'Debit column' },
+    { key: 'credit', label: 'Credit column' },
+  ];
+
+  readonly optionalMappingFields: { key: keyof ImportColumnMapping; label: string }[] = [
     { key: 'time', label: 'Time' },
     { key: 'type', label: 'Type' },
-    { key: 'memo', label: 'Memo / Notes' },
+    { key: 'memo', label: 'Memo or notes' },
   ];
 
   readonly mappingError = computed(() => mappingValidationError(this.profile().mapping));
@@ -200,6 +260,9 @@ export class ImportMapperComponent {
   readonly previewLines = computed((): ImportPreviewLine[] =>
     this.importService.previewRows(this.rows(), this.profile(), 5)
   );
+
+  readonly previewErrorCount = computed(() => this.previewLines().filter((row) => !!row.error).length);
+  readonly previewOkCount = computed(() => this.previewLines().filter((row) => !row.error).length);
 
   constructor() {
     effect(() => {
