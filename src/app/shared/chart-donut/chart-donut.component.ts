@@ -36,7 +36,7 @@ const PALETTE = [
         <canvas #canvas role="img" [attr.aria-label]="title() + ' chart'"></canvas>
       </div>
       @if (labels().length === 0) {
-        <p class="mt-2 text-center text-sm text-slate-500">No spending in this period.</p>
+        <p class="mt-2 text-center text-sm text-ink-muted">No spending breakdown for this period yet.</p>
       }
     </div>
   `,

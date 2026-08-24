@@ -20,7 +20,7 @@ Chart.register(...registerables);
       <canvas #canvas role="img" aria-label="Financial bar chart"></canvas>
     </div>
     @if (labels().length === 0) {
-      <p class="mt-2 text-center text-sm text-slate-500">No data for this period.</p>
+      <p class="mt-2 text-center text-sm text-ink-muted">No activity in this period yet.</p>
     }
   `,
 })

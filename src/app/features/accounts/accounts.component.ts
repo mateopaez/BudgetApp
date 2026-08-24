@@ -121,7 +121,7 @@ import { ModalSheetComponent } from '../../shared/modal-sheet/modal-sheet.compon
         title="Net worth (last 90 days)"
         [labels]="netWorthLabels()"
         [data]="netWorthData()"
-        color="#7c3aed"
+        color="#0F766E"
       />
 
       <div class="app-card overflow-hidden">

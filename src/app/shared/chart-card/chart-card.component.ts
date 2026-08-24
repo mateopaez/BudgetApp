@@ -22,7 +22,7 @@ Chart.register(...registerables);
         <canvas #canvas role="img" [attr.aria-label]="title() + ' chart'"></canvas>
       </div>
       @if (labels().length === 0) {
-        <p class="mt-2 text-center text-sm text-slate-500">No data for this period.</p>
+        <p class="mt-2 text-center text-sm text-ink-muted">No balance history for this period yet.</p>
       }
     </div>
   `,

@@ -481,13 +481,13 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
         </div>
         <div class="rounded-xl border border-line bg-action-soft px-4 py-3">
           <p class="text-xs font-medium uppercase tracking-wide text-action">Income</p>
-          <p class="text-lg font-semibold text-brand-600">{{ summary().income | currency }}</p>
+          <p class="text-lg font-semibold text-action">{{ summary().income | currency }}</p>
         </div>
         <div class="rounded-xl border border-slate-200 bg-white px-4 py-3">
           <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Net (in range)</p>
           <p
             class="text-lg font-semibold"
-            [class]="summary().net < 0 ? 'text-red-600' : summary().net > 0 ? 'text-brand-600' : 'text-slate-600'"
+            [class]="summary().net < 0 ? 'text-red-600' : summary().net > 0 ? 'text-action' : 'text-slate-600'"
           >
             {{ summary().net | currency }}
           </p>
@@ -506,7 +506,7 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
             <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Activity in range</p>
             <p
               class="text-lg font-semibold"
-              [class]="filteredNetActivity() < 0 ? 'text-red-600' : filteredNetActivity() > 0 ? 'text-brand-600' : 'text-slate-600'"
+              [class]="filteredNetActivity() < 0 ? 'text-red-600' : filteredNetActivity() > 0 ? 'text-action' : 'text-slate-600'"
             >
               {{ filteredNetActivity() | currency }}
             </p>

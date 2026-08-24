@@ -161,14 +161,14 @@ const WEEK_DAY_VISIBLE_CAP = 5;
         <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div class="flex flex-wrap items-center gap-2">
             <div
-              class="inline-flex overflow-hidden rounded-lg border border-brand-200 bg-white shadow-sm"
+              class="inline-flex overflow-hidden rounded-lg border border-line bg-white shadow-sm"
               role="group"
               aria-label="Plan view"
             >
               <button
                 type="button"
                 class="px-4 py-2 text-sm font-semibold transition-colors"
-                [class.bg-brand-600]="viewMode() === 'month'"
+                [class.bg-action]="viewMode() === 'month'"
                 [class.text-white]="viewMode() === 'month'"
                 [class.bg-white]="viewMode() !== 'month'"
                 [class.text-slate-600]="viewMode() !== 'month'"
@@ -178,8 +178,8 @@ const WEEK_DAY_VISIBLE_CAP = 5;
               </button>
               <button
                 type="button"
-                class="border-l border-brand-200 px-4 py-2 text-sm font-semibold transition-colors"
-                [class.bg-brand-600]="viewMode() === 'week'"
+                class="border-l border-line px-4 py-2 text-sm font-semibold transition-colors"
+                [class.bg-action]="viewMode() === 'week'"
                 [class.text-white]="viewMode() === 'week'"
                 [class.bg-white]="viewMode() !== 'week'"
                 [class.text-slate-600]="viewMode() !== 'week'"
@@ -851,7 +851,7 @@ export class CalendarComponent {
   weekDayColumnClass(day: Date): string {
     const parts: string[] = [];
     if (this.isSelected(day)) {
-      parts.push('ring-2 ring-brand-500 border-brand-400');
+      parts.push('ring-2 ring-action/60 border-action');
     }
     if (this.isToday(day)) {
       parts.push('bg-action-soft');
