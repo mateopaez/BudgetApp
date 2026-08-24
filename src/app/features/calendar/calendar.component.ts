@@ -543,7 +543,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
                     {{ item.kind }} · {{ scheduleLabel(item) }} · {{ item.amount | currency }}
                   </p>
                 </div>
-                <button mat-icon-button type="button" (click)="startEdit(item)" aria-label="Edit">
+                <button mat-icon-button type="button" (click)="startEdit(item)" [attr.aria-label]="'Edit ' + item.title">
                   <mat-icon>edit</mat-icon>
                 </button>
                 <button
@@ -551,7 +551,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
                   color="warn"
                   type="button"
                   (click)="removeItem(item)"
-                  aria-label="Delete"
+                  [attr.aria-label]="'Delete ' + item.title"
                 >
                   <mat-icon>delete</mat-icon>
                 </button>

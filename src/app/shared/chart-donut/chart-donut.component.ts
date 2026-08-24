@@ -33,7 +33,7 @@ const PALETTE = [
     <div class="panel p-5">
       <h3 class="kicker mb-4">{{ title() }}</h3>
       <div class="mx-auto h-64 max-w-sm">
-        <canvas #canvas></canvas>
+        <canvas #canvas role="img" [attr.aria-label]="title() + ' chart'"></canvas>
       </div>
       @if (labels().length === 0) {
         <p class="mt-2 text-center text-sm text-slate-500">No spending in this period.</p>

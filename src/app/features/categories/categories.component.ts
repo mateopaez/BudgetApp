@@ -123,10 +123,10 @@ interface CategoryBudgetRow {
                         (keydown.escape)="cancelEdit()"
                       />
                     </mat-form-field>
-                    <button mat-icon-button color="primary" (click)="saveEdit(row.cat.id)" aria-label="Save">
+                    <button mat-icon-button color="primary" (click)="saveEdit(row.cat.id)" [attr.aria-label]="'Save category name for ' + row.cat.name">
                       <mat-icon>check</mat-icon>
                     </button>
-                    <button mat-icon-button (click)="cancelEdit()" aria-label="Cancel">
+                    <button mat-icon-button (click)="cancelEdit()" [attr.aria-label]="'Cancel editing ' + row.cat.name">
                       <mat-icon>close</mat-icon>
                     </button>
                   } @else {
@@ -136,10 +136,10 @@ interface CategoryBudgetRow {
                         System
                       </span>
                     } @else {
-                      <button mat-icon-button (click)="startEdit(row.cat)" aria-label="Edit category">
+                      <button mat-icon-button (click)="startEdit(row.cat)" [attr.aria-label]="'Edit category ' + row.cat.name">
                         <mat-icon>edit</mat-icon>
                       </button>
-                      <button mat-icon-button color="warn" (click)="remove(row.cat)" aria-label="Delete category">
+                      <button mat-icon-button color="warn" (click)="remove(row.cat)" [attr.aria-label]="'Delete category ' + row.cat.name">
                         <mat-icon>delete</mat-icon>
                       </button>
                     }

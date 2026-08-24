@@ -17,7 +17,7 @@ Chart.register(...registerables);
   host: { class: 'block' },
   template: `
     <div class="h-52">
-      <canvas #canvas></canvas>
+      <canvas #canvas role="img" aria-label="Financial bar chart"></canvas>
     </div>
     @if (labels().length === 0) {
       <p class="mt-2 text-center text-sm text-slate-500">No data for this period.</p>

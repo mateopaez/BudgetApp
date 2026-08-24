@@ -19,7 +19,7 @@ Chart.register(...registerables);
     <div class="panel p-5">
       <h3 class="kicker mb-4">{{ title() }}</h3>
       <div class="h-56">
-        <canvas #canvas></canvas>
+        <canvas #canvas role="img" [attr.aria-label]="title() + ' chart'"></canvas>
       </div>
       @if (labels().length === 0) {
         <p class="mt-2 text-center text-sm text-slate-500">No data for this period.</p>

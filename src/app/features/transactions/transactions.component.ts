@@ -127,7 +127,7 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
             </div>
             <span class="text-sm font-semibold text-amber-900">{{ clearProgress().progress }}%</span>
           </div>
-          <mat-progress-bar mode="determinate" [value]="clearProgress().progress" color="warn" />
+          <mat-progress-bar mode="determinate" [value]="clearProgress().progress" color="warn" aria-label="Clear transactions progress" [attr.aria-valuetext]="clearProgress().message" />
         </div>
       }
 
@@ -172,7 +172,7 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
                   </div>
                   <span class="text-sm font-semibold text-action">{{ importProgress().progress }}%</span>
                 </div>
-                <mat-progress-bar mode="determinate" [value]="importProgress().progress" />
+                <mat-progress-bar mode="determinate" [value]="importProgress().progress" aria-label="Import progress" [attr.aria-valuetext]="importProgress().message" />
                 <p class="mt-3 text-xs text-slate-500">
                   Keep this tab open until the import finishes.
                 </p>
