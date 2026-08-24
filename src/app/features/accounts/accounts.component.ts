@@ -8,6 +8,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatIconModule } from '@angular/material/icon';
+import { MatDialog } from '@angular/material/dialog';
 import { Account, AccountType } from '../../core/models';
 import { AccountService } from '../../core/services/account.service';
 import { TransactionService } from '../../core/services/transaction.service';
@@ -20,6 +21,7 @@ import {
 } from '../../core/utils/balance-history.util';
 import { startOfDay } from '../../core/utils/date.util';
 import { ChartCardComponent } from '../../shared/chart-card/chart-card.component';
+import { confirmDialog } from '../../shared/confirm-dialog/confirm-dialog.component';
 
 @Component({
   selector: 'app-accounts',
@@ -214,6 +216,7 @@ export class AccountsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly accountService = inject(AccountService);
   private readonly transactionService = inject(TransactionService);
+  private readonly dialog = inject(MatDialog);
 
   readonly accounts = toSignal(this.accountService.watchAccounts(), { initialValue: [] });
   private readonly transactions = toSignal(this.transactionService.watchAllTransactions(), {
@@ -338,8 +341,14 @@ export class AccountsComponent {
   }
 
   async remove(id: string): Promise<void> {
-    if (confirm('Delete this account?')) {
-      await this.accountService.remove(id);
-    }
+    const confirmed = await confirmDialog(this.dialog, {
+      title: 'Delete account?',
+      message: 'This account will be removed from your account list.',
+      detail: 'Transactions that reference this account may lose important context in reports. Only delete accounts you no longer need.',
+      confirmLabel: 'Delete account',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
+    await this.accountService.remove(id);
   }
 }

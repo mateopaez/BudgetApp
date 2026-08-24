@@ -11,6 +11,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatDialog } from '@angular/material/dialog';
 import {
   CalendarEvent,
   MatCalendarComponent,
@@ -37,6 +38,7 @@ import {
   weekDays,
 } from '../../core/utils/calendar.util';
 import { endOfDay, formatDateParam, resolveCurrentWeek, startOfDay } from '../../core/utils/date.util';
+import { confirmDialog } from '../../shared/confirm-dialog/confirm-dialog.component';
 
 interface DaySummaryData {
   type: 'day-summary';
@@ -464,6 +466,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
 export class CalendarComponent {
   private readonly fb = inject(FormBuilder);
   private readonly snack = inject(MatSnackBar);
+  private readonly dialog = inject(MatDialog);
   private readonly router = inject(Router);
   private readonly scheduledService = inject(ScheduledItemService);
   private readonly transactionService = inject(TransactionService);
@@ -851,7 +854,14 @@ export class CalendarComponent {
   }
 
   async removeItem(item: ScheduledItem): Promise<void> {
-    if (!confirm(`Delete “${item.title}”?`)) return;
+    const confirmed = await confirmDialog(this.dialog, {
+      title: `Delete ${item.title}?`,
+      message: 'This removes the scheduled bill or paycheck from future planning.',
+      detail: 'Already-posted transactions remain in Activity unless you delete them separately.',
+      confirmLabel: 'Delete scheduled item',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
     try {
       await this.scheduledService.remove(item.id);
       if (this.editingId() === item.id) this.cancelEdit();

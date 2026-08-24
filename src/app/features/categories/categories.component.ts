@@ -9,12 +9,14 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
+import { MatDialog } from '@angular/material/dialog';
 import { BudgetPeriod, Category, CategoryBudget } from '../../core/models';
 import { BudgetService } from '../../core/services/budget.service';
 import { CategoryService } from '../../core/services/category.service';
 import { TransactionService } from '../../core/services/transaction.service';
 import { buildCategorySpendRows } from '../../core/utils/budget.util';
 import { resolveDateRange } from '../../core/utils/date.util';
+import { confirmDialog } from '../../shared/confirm-dialog/confirm-dialog.component';
 
 @Component({
   selector: 'app-categories',
@@ -161,6 +163,7 @@ export class CategoriesComponent {
   private readonly categoryService = inject(CategoryService);
   private readonly budgetService = inject(BudgetService);
   private readonly transactionService = inject(TransactionService);
+  private readonly dialog = inject(MatDialog);
 
   readonly Math = Math;
   readonly abs = Math.abs;
@@ -231,10 +234,16 @@ export class CategoriesComponent {
   }
 
   async remove(cat: Category): Promise<void> {
-    if (confirm(`Delete category "${cat.name}"? Transactions using it will keep the reference.`)) {
-      await this.budgetService.remove(cat.id);
-      await this.categoryService.remove(cat.id);
-    }
+    const confirmed = await confirmDialog(this.dialog, {
+      title: `Delete ${cat.name}?`,
+      message: 'This removes the category and its budget target.',
+      detail: 'Transactions that used this category keep their stored reference, so review reports after deleting categories that are already in use.',
+      confirmLabel: 'Delete category',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
+    await this.budgetService.remove(cat.id);
+    await this.categoryService.remove(cat.id);
   }
 
   startBudgetEdit(cat: Category, budget: CategoryBudget | null): void {

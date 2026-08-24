@@ -39,6 +39,7 @@ import {
   TransactionFormResult,
 } from './transaction-form-dialog.component';
 import { ImportMapperComponent } from './import-mapper.component';
+import { confirmDialog } from '../../shared/confirm-dialog/confirm-dialog.component';
 
 type ImportStep = 'upload' | 'map' | 'review';
 
@@ -849,9 +850,15 @@ export class TransactionsComponent implements OnInit {
   }
 
   async remove(id: string): Promise<void> {
-    if (confirm('Delete this transaction?')) {
-      await this.transactionService.remove(id);
-    }
+    const confirmed = await confirmDialog(this.dialog, {
+      title: 'Delete transaction?',
+      message: 'This removes the transaction from balances, budgets, and reports.',
+      detail: 'This action cannot be undone.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
+    await this.transactionService.remove(id);
   }
 
   openSplit(tx: Transaction): void {
