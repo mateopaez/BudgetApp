@@ -65,7 +65,6 @@ import { ChartDonutComponent } from '../../shared/chart-donut/chart-donut.compon
             Refunds offset spending
           </mat-slide-toggle>
           <a mat-stroked-button routerLink="/calendar">Calendar</a>
-          <a mat-stroked-button routerLink="/overview">This week</a>
         </div>
       </div>
 

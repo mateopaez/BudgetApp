@@ -79,7 +79,6 @@ export class ShellComponent implements OnInit {
 
   readonly nav = [
     { path: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
-    { path: '/overview', label: 'This week', icon: 'calendar_view_week' },
     { path: '/calendar', label: 'Calendar', icon: 'calendar_month' },
     { path: '/accounts', label: 'Accounts', icon: 'account_balance_wallet' },
     { path: '/transactions', label: 'Transactions', icon: 'receipt_long' },

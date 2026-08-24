@@ -18,13 +18,7 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/dashboard/dashboard.component').then((m) => m.DashboardComponent),
       },
-      {
-        path: 'overview',
-        loadComponent: () =>
-          import('./features/overview/weekly-overview.component').then(
-            (m) => m.WeeklyOverviewComponent
-          ),
-      },
+      { path: 'overview', redirectTo: 'calendar', pathMatch: 'full' },
       {
         path: 'calendar',
         loadComponent: () =>

@@ -18,11 +18,14 @@ import {
 import { startWith } from 'rxjs/operators';
 import { ScheduledItem, ScheduledItemInput, ScheduleType } from '../../core/models';
 import { AccountService } from '../../core/services/account.service';
+import { BudgetService } from '../../core/services/budget.service';
 import { CategoryService } from '../../core/services/category.service';
 import { ScheduledItemService } from '../../core/services/scheduled-item.service';
 import { TransactionService } from '../../core/services/transaction.service';
 import { signedAmountForKind } from '../../core/utils/amount.util';
+import { roundMoney } from '../../core/utils/balance.util';
 import { computeNetWorth } from '../../core/utils/balance-history.util';
+import { computePeriodTotals, WEEKS_PER_MONTH } from '../../core/utils/budget.util';
 import {
   CalendarOccurrence,
   dayKey,
@@ -128,6 +131,39 @@ const WEEK_DAY_VISIBLE_CAP = 5;
             (eventClicked)="onEventClicked($event)"
           />
         } @else {
+          <div class="mb-4 grid gap-3 sm:grid-cols-3">
+            <div class="rounded-xl border border-red-100 bg-red-50 px-4 py-3">
+              <p class="text-xs font-medium uppercase tracking-wide text-red-700">Spent this week</p>
+              <p class="text-xl font-semibold text-red-600">{{ weekTotals().spent | currency }}</p>
+            </div>
+            <div class="rounded-xl border border-brand-100 bg-brand-50 px-4 py-3">
+              <p class="text-xs font-medium uppercase tracking-wide text-brand-700">Weekly budget</p>
+              <p class="text-xl font-semibold text-brand-700">{{ weeklyBudgetTotal() | currency }}</p>
+              <p class="mt-0.5 text-xs text-slate-500">Monthly budgets ÷ {{ weeksPerMonth }}</p>
+            </div>
+            <div
+              class="rounded-xl border px-4 py-3"
+              [class]="
+                remainingBudget() < 0
+                  ? 'border-red-100 bg-red-50'
+                  : 'border-emerald-100 bg-emerald-50'
+              "
+            >
+              <p
+                class="text-xs font-medium uppercase tracking-wide"
+                [class]="remainingBudget() < 0 ? 'text-red-700' : 'text-emerald-700'"
+              >
+                {{ remainingBudget() < 0 ? 'Over budget' : 'Remaining' }}
+              </p>
+              <p
+                class="text-xl font-semibold"
+                [class]="remainingBudget() < 0 ? 'text-red-600' : 'text-emerald-700'"
+              >
+                {{ abs(remainingBudget()) | currency }}
+              </p>
+            </div>
+          </div>
+
           <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
             @for (day of weekCells(); track dayKey(day)) {
               <div
@@ -433,6 +469,7 @@ export class CalendarComponent {
   private readonly transactionService = inject(TransactionService);
   private readonly accountService = inject(AccountService);
   private readonly categoryService = inject(CategoryService);
+  private readonly budgetService = inject(BudgetService);
 
   readonly selectedDate = signal(startOfDay(new Date()));
   readonly viewMode = signal<CalendarView>('month');
@@ -440,10 +477,13 @@ export class CalendarComponent {
   readonly saving = signal(false);
 
   readonly dayKey = dayKey;
+  readonly weeksPerMonth = WEEKS_PER_MONTH;
+  readonly abs = Math.abs;
 
   readonly accounts = toSignal(this.accountService.watchAccounts(), { initialValue: [] });
   readonly categories = toSignal(this.categoryService.watchCategories(), { initialValue: [] });
   readonly scheduled = toSignal(this.scheduledService.watchScheduledItems(), { initialValue: [] });
+  private readonly budgets = toSignal(this.budgetService.watchBudgets(), { initialValue: [] });
   private readonly transactions = toSignal(this.transactionService.watchAllTransactions(), {
     initialValue: [],
   });
@@ -531,12 +571,29 @@ export class CalendarComponent {
     );
   });
 
-  readonly weekStart = computed(() => {
-    const week = resolveCurrentWeek(this.selectedDate());
-    return week.start ?? this.selectedDate();
-  });
+  readonly weekRange = computed(() => resolveCurrentWeek(this.selectedDate()));
+
+  readonly weekStart = computed(() => this.weekRange().start ?? this.selectedDate());
 
   readonly weekCells = computed(() => weekDays(this.weekStart()));
+
+  readonly weekTotals = computed(() =>
+    computePeriodTotals(this.transactions(), [], this.weekRange(), false)
+  );
+
+  readonly weeklyBudgetTotal = computed(() =>
+    roundMoney(
+      this.budgets().reduce((sum, b) => {
+        const weekly =
+          b.period === 'weekly' ? b.amount : roundMoney(b.amount / WEEKS_PER_MONTH);
+        return sum + weekly;
+      }, 0)
+    )
+  );
+
+  readonly remainingBudget = computed(() =>
+    roundMoney(this.weeklyBudgetTotal() - this.weekTotals().spent)
+  );
 
   readonly periodLabel = computed(() => {
     if (this.viewMode() === 'month') {

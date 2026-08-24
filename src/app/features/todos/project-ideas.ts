@@ -32,7 +32,6 @@ export const PROJECT_IDEAS: ProjectIdea[] = [
       'Calendar / upcoming bill system. Can choose week view or month view. Can put in fixed dates for income or bills',
   },
   { id: 'balance-comparison', title: 'Balance comparison to some extent ?' },
-  { id: 'weekly-overview', title: 'Weekly overview (over/under budget info)' },
   { id: 'debts-owed', title: 'Debts owed kinda thing' },
   {
     id: 'spending-recommendations',
