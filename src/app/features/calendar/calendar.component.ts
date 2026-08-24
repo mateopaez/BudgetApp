@@ -71,13 +71,89 @@ const WEEK_DAY_VISIBLE_CAP = 5;
   ],
   template: `
     <div class="calendar-page space-y-6">
-      <div class="page-header">
-        <h1 class="page-title">Plan</h1>
-        <p class="page-subtitle">
-          Bills, paychecks, and transactions · net worth
-          {{ netWorth() | currency }}
-        </p>
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div class="page-header">
+          <h1 class="page-title">Plan</h1>
+          <p class="page-subtitle">
+            Bills, paychecks, and transactions · net worth
+            {{ netWorth() | currency }}
+          </p>
+        </div>
+        <button mat-flat-button color="primary" type="button" (click)="startNewItem()">
+          <mat-icon>add</mat-icon>
+          Add bill or paycheck
+        </button>
       </div>
+
+      <section class="panel">
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p class="kicker">This week</p>
+            <h2 class="mt-1 text-xl font-semibold tracking-[-0.02em] text-ink">
+              {{ weekSummaryTitle() }}
+            </h2>
+            <p class="mt-1 text-sm text-ink-muted">{{ weekSummaryDetail() }}</p>
+          </div>
+
+          @if (nextUpcoming()) {
+            <div class="rounded-2xl border border-line bg-surface px-4 py-3 lg:min-w-72">
+              <p class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Next scheduled</p>
+              <div class="mt-2 flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="truncate font-semibold text-ink">{{ nextUpcoming()!.title }}</p>
+                  <p class="text-sm text-ink-muted">{{ nextUpcoming()!.date | date: 'EEE, MMM d' }}</p>
+                </div>
+                <p
+                  class="money shrink-0 font-semibold"
+                  [class.text-emerald-700]="nextUpcoming()!.amount > 0"
+                  [class.text-red-600]="nextUpcoming()!.amount < 0"
+                >
+                  {{ nextUpcoming()!.amount | currency }}
+                </p>
+              </div>
+            </div>
+          }
+        </div>
+
+        <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div class="metric">
+            <p class="kicker">Upcoming bills</p>
+            <p class="money mt-1 text-2xl font-semibold text-red-600">
+              {{ upcomingBillsTotal() | currency }}
+            </p>
+            <p class="mt-1 text-xs text-ink-muted">Next 7 days</p>
+          </div>
+          <div class="metric">
+            <p class="kicker">Upcoming income</p>
+            <p class="money mt-1 text-2xl font-semibold text-emerald-700">
+              {{ upcomingIncomeTotal() | currency }}
+            </p>
+            <p class="mt-1 text-xs text-ink-muted">Next 7 days</p>
+          </div>
+          <div
+            class="metric"
+            [class.bg-red-50]="upcomingNet() < 0"
+            [class.border-red-100]="upcomingNet() < 0"
+            [class.bg-emerald-50]="upcomingNet() >= 0"
+            [class.border-emerald-100]="upcomingNet() >= 0"
+          >
+            <p class="kicker">Scheduled net</p>
+            <p
+              class="money mt-1 text-2xl font-semibold"
+              [class.text-red-600]="upcomingNet() < 0"
+              [class.text-emerald-700]="upcomingNet() >= 0"
+            >
+              {{ upcomingNet() | currency }}
+            </p>
+            <p class="mt-1 text-xs text-ink-muted">Bills minus income due soon</p>
+          </div>
+          <div class="metric">
+            <p class="kicker">Active schedules</p>
+            <p class="mt-1 text-2xl font-semibold text-ink">{{ activeScheduledCount() }}</p>
+            <p class="mt-1 text-xs text-ink-muted">Bills and paychecks being tracked</p>
+          </div>
+        </div>
+      </section>
 
       <div class="app-card overflow-hidden p-3 sm:p-4">
         <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -258,7 +334,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
                 </li>
               } @empty {
                 <li class="px-4 py-6 text-center text-sm text-slate-500">
-                  Nothing on this day. Click a count on the calendar or add a bill below.
+                  Nothing planned or posted for this day.
                 </li>
               }
             </ul>
@@ -294,7 +370,9 @@ const WEEK_DAY_VISIBLE_CAP = 5;
                     </span>
                   </li>
                 } @empty {
-                  <li class="text-sm text-slate-500">No upcoming scheduled items.</li>
+                  <li class="rounded-xl border border-line bg-surface px-3 py-3 text-sm text-slate-500">
+                    Nothing scheduled in the next 7 days. Add bills, subscriptions, or income to plan ahead.
+                  </li>
                 }
               </ul>
             </div>
@@ -315,17 +393,34 @@ const WEEK_DAY_VISIBLE_CAP = 5;
         </div>
 
         @if (showScheduleForm() || editingId()) {
-          <mat-card class="app-card">
-            <mat-card-header>
-              <mat-card-title class="!text-base !text-ink">
-                {{ editingId() ? 'Edit scheduled item' : 'Add bill / paycheck' }}
-              </mat-card-title>
-              <mat-card-subtitle>
-                Saving creates matching transactions on scheduled dates so balances and reports stay current.
-              </mat-card-subtitle>
-            </mat-card-header>
-            <mat-card-content>
-              <form class="flex flex-col gap-1" [formGroup]="form" (ngSubmit)="saveItem()">
+          <div
+            class="fixed inset-0 z-50 flex items-end justify-center bg-ink/35 p-0 backdrop-blur-[2px] sm:items-center sm:p-6"
+            role="dialog"
+            aria-modal="true"
+            [attr.aria-label]="editingId() ? 'Edit scheduled item' : 'Add bill or paycheck'"
+            (click)="cancelEdit()"
+          >
+            <mat-card
+              class="app-card max-h-[92vh] w-full overflow-hidden !rounded-b-none !shadow-floating sm:max-w-xl sm:!rounded-3xl"
+              (click)="$event.stopPropagation()"
+            >
+              <mat-card-header class="border-b border-line !px-5 !py-4">
+                <div class="flex w-full items-start justify-between gap-4">
+                  <div>
+                    <mat-card-title class="!text-base !text-ink">
+                      {{ editingId() ? 'Edit scheduled item' : 'Add bill / paycheck' }}
+                    </mat-card-title>
+                    <mat-card-subtitle>
+                      Saving creates matching transactions on scheduled dates so balances and reports stay current.
+                    </mat-card-subtitle>
+                  </div>
+                  <button mat-icon-button type="button" (click)="cancelEdit()" aria-label="Close form">
+                    <mat-icon>close</mat-icon>
+                  </button>
+                </div>
+              </mat-card-header>
+              <mat-card-content class="max-h-[calc(92vh-6rem)] overflow-y-auto !p-5">
+                <form class="flex flex-col gap-1" [formGroup]="form" (ngSubmit)="saveItem()">
               <mat-form-field>
                 <mat-label>Title</mat-label>
                 <input matInput formControlName="title" autocomplete="off" />
@@ -408,26 +503,28 @@ const WEEK_DAY_VISIBLE_CAP = 5;
 
               <mat-checkbox formControlName="isActive" class="mb-2">Active</mat-checkbox>
 
-              <div class="flex flex-wrap gap-2">
+              <div class="sticky bottom-0 -mx-5 -mb-5 mt-2 flex flex-wrap justify-end gap-2 border-t border-line bg-surface px-5 py-4">
+                <button mat-button type="button" (click)="cancelEdit()">Cancel</button>
                 <button
                   mat-flat-button
                   color="primary"
                   type="submit"
                   [disabled]="form.invalid || saving()"
                 >
-                  {{ editingId() ? 'Save' : 'Add' }}
+                  {{ saving() ? 'Saving…' : editingId() ? 'Save changes' : 'Add item' }}
                 </button>
-                <button mat-button type="button" (click)="cancelEdit()">Cancel</button>
               </div>
             </form>
           </mat-card-content>
         </mat-card>
+      </div>
         }
       </div>
 
       <mat-card class="app-card">
         <mat-card-header>
-          <mat-card-title class="!text-base !text-ink">All scheduled</mat-card-title>
+          <mat-card-title class="!text-base !text-ink">Scheduled bills & paychecks</mat-card-title>
+          <mat-card-subtitle>{{ activeScheduledCount() }} active · {{ scheduled().length }} total</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
           <ul
@@ -585,8 +682,32 @@ export class CalendarComponent {
     return filterPostedScheduledOccurrences(
       expandScheduledOccurrences(this.scheduled(), start, end),
       this.transactions()
-    );
+    ).sort((a, b) => a.date.getTime() - b.date.getTime());
   });
+
+  readonly nextUpcoming = computed(() => this.upcoming()[0] ?? null);
+
+  readonly upcomingBillsTotal = computed(() =>
+    roundMoney(
+      this.upcoming()
+        .filter((occ) => occ.amount < 0)
+        .reduce((sum, occ) => sum + Math.abs(occ.amount), 0)
+    )
+  );
+
+  readonly upcomingIncomeTotal = computed(() =>
+    roundMoney(
+      this.upcoming()
+        .filter((occ) => occ.amount > 0)
+        .reduce((sum, occ) => sum + occ.amount, 0)
+    )
+  );
+
+  readonly upcomingNet = computed(() =>
+    roundMoney(this.upcoming().reduce((sum, occ) => sum + occ.amount, 0))
+  );
+
+  readonly activeScheduledCount = computed(() => this.scheduled().filter((item) => item.isActive).length);
 
   readonly weekRange = computed(() => resolveCurrentWeek(this.selectedDate()));
 
@@ -611,6 +732,31 @@ export class CalendarComponent {
   readonly remainingBudget = computed(() =>
     roundMoney(this.weeklyBudgetTotal() - this.weekTotals().spent)
   );
+
+  readonly weekSummaryTitle = computed(() => {
+    const remaining = this.remainingBudget();
+    if (this.weeklyBudgetTotal() <= 0) {
+      return 'Plan this week around scheduled cashflow';
+    }
+    if (remaining < 0) {
+      return `${this.formatMoney(Math.abs(remaining))} over weekly budget`;
+    }
+    return `${this.formatMoney(remaining)} left in weekly budget`;
+  });
+
+  readonly weekSummaryDetail = computed(() => {
+    const upcoming = this.upcoming();
+    if (!upcoming.length) {
+      return 'Nothing scheduled in the next 7 days.';
+    }
+    const bills = upcoming.filter((occ) => occ.amount < 0).length;
+    const income = upcoming.filter((occ) => occ.amount > 0).length;
+    const pieces = [
+      bills ? `${bills} bill${bills === 1 ? '' : 's'}` : null,
+      income ? `${income} income item${income === 1 ? '' : 's'}` : null,
+    ].filter(Boolean);
+    return `${pieces.join(' and ')} scheduled in the next 7 days.`;
+  });
 
   readonly periodLabel = computed(() => {
     if (this.viewMode() === 'month') {
@@ -637,6 +783,14 @@ export class CalendarComponent {
       const checking = accounts.find((a) => a.type === 'checking') ?? accounts[0];
       this.form.patchValue({ accountId: checking.id });
     });
+  }
+
+  private formatMoney(value: number): string {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: 'USD',
+      maximumFractionDigits: 0,
+    }).format(value);
   }
 
   transactionsLinkParams(): Record<string, string> {
