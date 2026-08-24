@@ -25,10 +25,18 @@ describe('import normalizers', () => {
     expect(resolveAmountFromRow(row, mapping, 'negative_expense')).toBe(-15);
   });
 
-  it('parses common date formats', () => {
-    expect(normalizeImportDate('2026-03-15')?.getFullYear()).toBe(2026);
+  it('parses common date formats as local midnight', () => {
+    const iso = normalizeImportDate('2026-03-15');
+    expect(iso?.getFullYear()).toBe(2026);
+    expect(iso?.getHours()).toBe(0);
     expect(normalizeImportDate('03/15/2026')?.getMonth()).toBe(2);
     expect(normalizeImportDate('15/03/2026')?.getDate()).toBe(15);
+  });
+
+  it('ignores time-of-day in ISO-like strings', () => {
+    const parsed = normalizeImportDate('2026-03-15T14:30:00');
+    expect(parsed?.getHours()).toBe(0);
+    expect(parsed?.getMinutes()).toBe(0);
   });
 
   it('uses memo when merchant is empty', () => {

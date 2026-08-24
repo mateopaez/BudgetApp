@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { ImportProfileConfig } from '../models/import.model';
+import { ImportColumnMapping, ImportProfileConfig } from '../models/import.model';
 import {
   BUILTIN_IMPORT_PROFILES,
   cloneProfile,
@@ -26,7 +26,8 @@ export class ImportProfileService {
       const raw = localStorage.getItem(`${ACCOUNT_KEY_PREFIX}${accountId}`);
       if (!raw) return null;
       const saved = JSON.parse(raw) as ImportProfileConfig;
-      return this.getProfileById(saved.id) ?? saved;
+      const profile = this.getProfileById(saved.id) ?? saved;
+      return { ...profile, mapping: this.sanitizeMapping(profile.mapping) };
     } catch {
       return null;
     }
@@ -66,10 +67,24 @@ export class ImportProfileService {
     try {
       const raw = localStorage.getItem(PROFILES_KEY);
       if (!raw) return [];
-      return JSON.parse(raw) as ImportProfileConfig[];
+      const parsed = JSON.parse(raw) as ImportProfileConfig[];
+      return parsed.map((p) => ({ ...p, mapping: this.sanitizeMapping(p.mapping) }));
     } catch {
       return [];
     }
+  }
+
+  /** Drop legacy fields (e.g. time) from saved mappings. */
+  private sanitizeMapping(mapping: ImportColumnMapping & { time?: string | null }): ImportColumnMapping {
+    return {
+      date: mapping.date ?? null,
+      merchant: mapping.merchant ?? null,
+      amount: mapping.amount ?? null,
+      debit: mapping.debit ?? null,
+      credit: mapping.credit ?? null,
+      type: mapping.type ?? null,
+      memo: mapping.memo ?? null,
+    };
   }
 
   private persistUserProfiles(profiles: ImportProfileConfig[]): void {

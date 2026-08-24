@@ -8,7 +8,6 @@ export type ImportFieldKey =
   | 'amount'
   | 'debit'
   | 'credit'
-  | 'time'
   | 'type'
   | 'memo';
 
@@ -18,7 +17,6 @@ export interface ImportColumnMapping {
   amount: string | null;
   debit: string | null;
   credit: string | null;
-  time: string | null;
   type: string | null;
   memo: string | null;
 }
@@ -52,7 +50,6 @@ export const EMPTY_IMPORT_MAPPING: ImportColumnMapping = {
   amount: null,
   debit: null,
   credit: null,
-  time: null,
   type: null,
   memo: null,
 };

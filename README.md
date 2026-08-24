@@ -150,7 +150,7 @@ On deploy, Vercel injects env vars into the build; `prebuild` generates `environ
 
 ## CSV import rules
 
-Expected columns: `Description, Type, Card Holder Name, Date, Time, Amount`.
+Expected columns: `Description, Type, Card Holder Name, Date, Amount` (Time columns are ignored).
 
 - `Amount < 0` → `expense` (category = null → **Inbox**)
 - `Amount > 0` + `Type == PAYMENT` or description contains `PAYMENT` → `cc_payment` + system category

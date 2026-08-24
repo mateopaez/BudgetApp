@@ -152,7 +152,7 @@ import { ImportService } from '../../core/services/import.service';
               <th mat-header-cell *matHeaderCellDef>Date</th>
               <td mat-cell *matCellDef="let row">
                 @if (row.postedAt) {
-                  {{ row.postedAt | date: 'short' }}
+                  {{ row.postedAt | date: 'mediumDate' }}
                 } @else {
                   —
                 }
@@ -250,7 +250,6 @@ export class ImportMapperComponent {
   ];
 
   readonly optionalMappingFields: { key: keyof ImportColumnMapping; label: string }[] = [
-    { key: 'time', label: 'Time' },
     { key: 'type', label: 'Type' },
     { key: 'memo', label: 'Memo or notes' },
   ];

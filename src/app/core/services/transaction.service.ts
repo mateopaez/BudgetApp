@@ -6,6 +6,7 @@ import {
   deleteDoc,
   doc,
   getDocs,
+  limit,
   onSnapshot,
   orderBy,
   query,
@@ -16,7 +17,7 @@ import {
 } from '@angular/fire/firestore';
 import { Observable } from 'rxjs';
 import { ParsedImportRow, SplitLine, Transaction, TransactionKind } from '../models';
-import { endOfMonth, startOfMonth } from '../utils/date.util';
+import { endOfMonth, startOfDay, startOfMonth } from '../utils/date.util';
 import { normalizeMerchant } from '../utils/hash.util';
 import { toDate, toTimestamp } from '../utils/firestore.util';
 import { AuthService } from './auth.service';
@@ -142,7 +143,7 @@ export class TransactionService {
     const description = input.description?.trim() || null;
     return {
       accountId: input.accountId,
-      postedAt: toTimestamp(input.postedAt),
+      postedAt: toTimestamp(startOfDay(input.postedAt)),
       merchant: normalizeMerchant(input.merchant),
       description,
       amount: input.amount,
@@ -171,7 +172,7 @@ export class TransactionService {
         const newRef = doc(ref);
         batch.set(newRef, {
           accountId,
-          postedAt: toTimestamp(row.postedAt),
+          postedAt: toTimestamp(startOfDay(row.postedAt)),
           merchant: row.merchant,
           description: row.description,
           amount: row.amount,
@@ -193,7 +194,7 @@ export class TransactionService {
     if (!uid) throw new Error('Not authenticated');
     await updateDoc(doc(this.firestore, `users/${uid}/transactions/${id}`), {
       ...patch,
-      postedAt: patch.postedAt ? toTimestamp(patch.postedAt) : undefined,
+      postedAt: patch.postedAt ? toTimestamp(startOfDay(patch.postedAt)) : undefined,
       merchant: patch.merchant ? normalizeMerchant(patch.merchant) : undefined,
       description:
         patch.description !== undefined ? patch.description?.trim() || null : undefined,
@@ -205,6 +206,48 @@ export class TransactionService {
     const uid = this.auth.uid();
     if (!uid) throw new Error('Not authenticated');
     await deleteDoc(doc(this.firestore, `users/${uid}/transactions/${id}`));
+  }
+
+  /** Deletes the given transaction docs in batches of 400. */
+  async removeMany(ids: string[]): Promise<number> {
+    const uid = this.auth.uid();
+    if (!uid) throw new Error('Not authenticated');
+    if (ids.length === 0) return 0;
+
+    const chunkSize = 400;
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const batch = writeBatch(this.firestore);
+      ids.slice(i, i + chunkSize).forEach((id) => {
+        batch.delete(doc(this.firestore, `users/${uid}/transactions/${id}`));
+      });
+      await batch.commit();
+    }
+    return ids.length;
+  }
+
+  /**
+   * Deletes every transaction for the signed-in user.
+   * Pages through the collection so large datasets and cache/server mismatches still clear.
+   */
+  async removeAll(): Promise<number> {
+    const uid = this.auth.uid();
+    if (!uid) throw new Error('Not authenticated');
+
+    const ref = collection(this.firestore, `users/${uid}/transactions`);
+    let deleted = 0;
+
+    // Page until empty — do not rely on a single getDocs() of the whole collection.
+    for (;;) {
+      const snap = await getDocs(query(ref, limit(400)));
+      if (snap.empty) break;
+
+      const batch = writeBatch(this.firestore);
+      snap.docs.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+      deleted += snap.size;
+    }
+
+    return deleted;
   }
 
   async getByAccount(accountId: string): Promise<Transaction[]> {

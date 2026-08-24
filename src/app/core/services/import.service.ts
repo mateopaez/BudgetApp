@@ -13,6 +13,7 @@ import {
   normalizeImportMerchant,
   resolveAmountFromRow,
 } from '../utils/import-normalizers.util';
+import { formatDateParam } from '../utils/date.util';
 import { sha1 } from '../utils/hash.util';
 import { CategoryService } from './category.service';
 
@@ -114,7 +115,9 @@ export class ImportService {
         refundId
       );
 
-      const importHash = await sha1(`${accountId}${postedAt.toISOString()}${merchant}${amount}`);
+      const importHash = await sha1(
+        `${accountId}${formatDateParam(postedAt)}${merchant}${amount}`
+      );
 
       mapped.push({
         postedAt,
@@ -168,8 +171,7 @@ export class ImportService {
 
     const amount = resolveAmountFromRow(row, profile.mapping, profile.amountSign);
     const postedAt = normalizeImportDate(
-      profile.mapping.date ? row[profile.mapping.date] : null,
-      profile.mapping.time ? row[profile.mapping.time] : null
+      profile.mapping.date ? row[profile.mapping.date] : null
     );
     const merchant = normalizeImportMerchant(
       profile.mapping.merchant ? row[profile.mapping.merchant] : null,

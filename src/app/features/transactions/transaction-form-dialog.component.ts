@@ -11,6 +11,7 @@ import {
   amountHintForKind,
   signedAmountForKind,
 } from '../../core/utils/amount.util';
+import { formatDateParam, parseDateParam, startOfDay } from '../../core/utils/date.util';
 
 export interface TransactionFormDialogData {
   mode: 'add' | 'edit';
@@ -133,21 +134,13 @@ export interface TransactionFormResult {
 
         <section class="space-y-3">
           <p class="kicker">When and notes</p>
-          <div class="grid gap-3 sm:grid-cols-2">
-            <mat-form-field appearance="outline">
-              <mat-label>Date</mat-label>
-              <input matInput type="date" formControlName="date" />
-              @if (form.controls.date.hasError('required') && form.controls.date.touched) {
-                <mat-error>Date is required.</mat-error>
-              }
-            </mat-form-field>
-
-            <mat-form-field appearance="outline">
-              <mat-label>Time</mat-label>
-              <input matInput type="time" formControlName="time" />
-              <mat-hint>Optional, used for same-day ordering.</mat-hint>
-            </mat-form-field>
-          </div>
+          <mat-form-field appearance="outline" class="w-full">
+            <mat-label>Date</mat-label>
+            <input matInput type="date" formControlName="date" />
+            @if (form.controls.date.hasError('required') && form.controls.date.touched) {
+              <mat-error>Date is required.</mat-error>
+            }
+          </mat-form-field>
 
           <mat-form-field appearance="outline">
             <mat-label>Description (optional)</mat-label>
@@ -172,8 +165,7 @@ export class TransactionFormDialogComponent implements OnInit {
 
   readonly form = this.fb.nonNullable.group({
     accountId: ['', Validators.required],
-    date: [new Date().toISOString().slice(0, 10), Validators.required],
-    time: [this.currentTime()],
+    date: [formatDateParam(new Date()), Validators.required],
     merchant: ['', Validators.required],
     description: [''],
     kind: ['expense' as TransactionKind, Validators.required],
@@ -186,8 +178,7 @@ export class TransactionFormDialogComponent implements OnInit {
       const tx = this.data.transaction;
       this.form.patchValue({
         accountId: tx.accountId,
-        date: tx.postedAt.toISOString().slice(0, 10),
-        time: tx.postedAt.toTimeString().slice(0, 5),
+        date: formatDateParam(tx.postedAt),
         merchant: tx.merchant,
         description: tx.description ?? '',
         kind: tx.kind,
@@ -267,7 +258,7 @@ export class TransactionFormDialogComponent implements OnInit {
       return;
     }
     const v = this.form.getRawValue();
-    const postedAt = new Date(`${v.date}T${v.time || '00:00'}`);
+    const postedAt = parseDateParam(v.date) ?? startOfDay(new Date());
     const description = v.description.trim() || null;
     this.dialogRef.close({
       accountId: v.accountId,
@@ -278,10 +269,5 @@ export class TransactionFormDialogComponent implements OnInit {
       kind: v.kind,
       categoryId: this.showCategory() ? v.categoryId : null,
     } satisfies TransactionFormResult);
-  }
-
-  private currentTime(): string {
-    const now = new Date();
-    return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
   }
 }

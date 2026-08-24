@@ -1,12 +1,6 @@
-export function parsePostedAt(dateStr: string, timeStr: string): Date {
-  const date = dateStr.trim();
-  const time = timeStr?.trim() || '00:00:00';
-  const combined = `${date}T${time}`;
-  const parsed = new Date(combined);
-  if (!Number.isNaN(parsed.getTime())) {
-    return parsed;
-  }
-  return new Date(`${date} ${time}`);
+/** Parse a calendar date string into a local midnight Date (no time-of-day). */
+export function parsePostedAt(dateStr: string): Date | null {
+  return parseDateParam(dateStr.trim());
 }
 
 export function monthKey(date: Date): string {

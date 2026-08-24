@@ -14,6 +14,7 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTableModule } from '@angular/material/table';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatDialog } from '@angular/material/dialog';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { Category, ParsedImportRow, Transaction } from '../../core/models';
 import { AccountService } from '../../core/services/account.service';
 import { CategoryService } from '../../core/services/category.service';
@@ -60,6 +61,7 @@ type ImportStep = 'upload' | 'map' | 'review';
     MatSlideToggleModule,
     MatTableModule,
     MatDatepickerModule,
+    MatSnackBarModule,
     ImportMapperComponent,
   ],
   template: `
@@ -85,6 +87,16 @@ type ImportStep = 'upload' | 'map' | 'review';
           <button mat-stroked-button (click)="toggleImport()">
             <mat-icon>upload_file</mat-icon>
             Import CSV
+          </button>
+          <button
+            mat-stroked-button
+            color="warn"
+            type="button"
+            (click)="clearAllTransactions()"
+            [disabled]="transactionCount() === 0 || clearing()"
+          >
+            <mat-icon>delete_sweep</mat-icon>
+            {{ clearing() ? 'Clearing…' : 'Clear all' }}
           </button>
           <button mat-flat-button color="primary" (click)="openAdd()">
             <mat-icon>add</mat-icon>
@@ -209,7 +221,7 @@ type ImportStep = 'upload' | 'map' | 'review';
             <table mat-table [dataSource]="importPreview()" class="w-full min-w-[640px]">
               <ng-container matColumnDef="postedAt">
                 <th mat-header-cell *matHeaderCellDef>Date</th>
-                <td mat-cell *matCellDef="let row">{{ row.postedAt | date: 'short' }}</td>
+                <td mat-cell *matCellDef="let row">{{ row.postedAt | date: 'mediumDate' }}</td>
               </ng-container>
               <ng-container matColumnDef="merchant">
                 <th mat-header-cell *matHeaderCellDef>Merchant</th>
@@ -414,7 +426,7 @@ type ImportStep = 'upload' | 'map' | 'review';
                   <p class="mt-0.5 text-sm text-slate-500">{{ tx.description }}</p>
                 }
                 <p class="mt-1 text-sm text-slate-500">
-                  {{ tx.postedAt | date: 'medium' }} · {{ accountName(tx.accountId) }} · {{ tx.kind }}
+                  {{ tx.postedAt | date: 'mediumDate' }} · {{ accountName(tx.accountId) }} · {{ tx.kind }}
                   @if (isInbox(tx)) {
                     <span class="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
                       Inbox
@@ -482,6 +494,7 @@ export class TransactionsComponent implements OnInit {
   private readonly importProfileService = inject(ImportProfileService);
   private readonly transactionService = inject(TransactionService);
   private readonly dialog = inject(MatDialog);
+  private readonly snack = inject(MatSnackBar);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
@@ -490,6 +503,7 @@ export class TransactionsComponent implements OnInit {
   private readonly allTransactions = toSignal(this.transactionService.watchAllTransactions(), {
     initialValue: [],
   });
+  readonly transactionCount = computed(() => this.allTransactions().length);
 
   readonly importColumns = ['postedAt', 'merchant', 'amount', 'kind', 'status'];
   readonly importStep = signal<ImportStep>('upload');
@@ -499,6 +513,7 @@ export class TransactionsComponent implements OnInit {
   readonly showImport = signal(false);
   readonly parsing = signal(false);
   readonly importing = signal(false);
+  readonly clearing = signal(false);
   readonly importPreview = signal<ParsedImportRow[]>([]);
   readonly importStatus = signal<string | null>(null);
   readonly importProgress = signal<ImportProgress>({
@@ -915,6 +930,44 @@ export class TransactionsComponent implements OnInit {
     });
     if (!confirmed) return;
     await this.transactionService.remove(id);
+  }
+
+  async clearAllTransactions(): Promise<void> {
+    const ids = this.allTransactions().map((tx) => tx.id);
+    if (ids.length === 0) {
+      this.snack.open('No transactions to clear.', 'Dismiss', { duration: 3000 });
+      return;
+    }
+
+    const confirmed = await confirmDialog(this.dialog, {
+      title: 'Clear all transactions?',
+      message: `This permanently deletes all ${ids.length} transactions so you can re-import a clean CSV.`,
+      detail: 'Accounts, categories, budgets, and scheduled items are kept. This cannot be undone.',
+      confirmLabel: 'Delete all',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
+
+    this.clearing.set(true);
+    try {
+      // Delete what the UI already knows about first (reliable path).
+      await this.transactionService.removeMany(ids);
+      // Sweep any leftovers that weren't in the live query snapshot.
+      const swept = await this.transactionService.removeAll();
+      const total = Math.max(ids.length, swept);
+      this.snack.open(`Deleted ${total} transaction${total === 1 ? '' : 's'}.`, 'Dismiss', {
+        duration: 4000,
+      });
+    } catch (e: unknown) {
+      console.error('Failed to clear transactions', e);
+      this.snack.open(
+        e instanceof Error ? e.message : 'Failed to clear transactions. Check the console for details.',
+        'Dismiss',
+        { duration: 8000 }
+      );
+    } finally {
+      this.clearing.set(false);
+    }
   }
 
   openSplit(tx: Transaction): void {
