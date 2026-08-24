@@ -142,7 +142,46 @@ import { ImportService } from '../../core/services/import.service';
             </p>
           </div>
         </div>
-        <div class="overflow-x-auto rounded-xl border border-line">
+        <div class="space-y-2 sm:hidden">
+          @for (row of previewLines(); track row.rowIndex) {
+            <div
+              class="rounded-2xl border bg-surface p-4"
+              [class.border-red-200]="!!row.error"
+              [class.bg-red-50]="!!row.error"
+              [class.border-line]="!row.error"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Row {{ row.rowIndex + 1 }}</p>
+                  <p class="mt-1 truncate font-semibold text-ink">{{ row.merchant || 'No merchant mapped' }}</p>
+                  <p class="mt-1 text-xs text-ink-muted">
+                    @if (row.postedAt) {
+                      {{ row.postedAt | date: 'mediumDate' }}
+                    } @else {
+                      No date mapped
+                    }
+                    · {{ row.kind || 'No kind yet' }}
+                  </p>
+                </div>
+                <p class="money shrink-0 font-semibold" [class]="row.amount == null ? 'text-ink-muted' : row.amount < 0 ? 'text-red-600' : 'text-action'">
+                  @if (row.amount != null) {
+                    {{ row.amount | currency }}
+                  } @else {
+                    —
+                  }
+                </p>
+              </div>
+              <p
+                class="mt-3 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
+                [class]="row.error ? 'bg-red-100 text-red-700' : 'bg-action-soft text-action'"
+              >
+                {{ row.error || 'Ready' }}
+              </p>
+            </div>
+          }
+        </div>
+
+        <div class="hidden overflow-x-auto rounded-xl border border-line sm:block">
           <table mat-table [dataSource]="previewLines()" class="w-full min-w-[640px]">
             <ng-container matColumnDef="row">
               <th mat-header-cell *matHeaderCellDef>#</th>
