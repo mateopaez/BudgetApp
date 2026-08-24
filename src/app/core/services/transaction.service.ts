@@ -157,13 +157,20 @@ export class TransactionService {
     };
   }
 
-  async importBatch(accountId: string, rows: ParsedImportRow[]): Promise<{ imported: number; skipped: number }> {
+  async importBatch(
+    accountId: string,
+    rows: ParsedImportRow[],
+    onProgress?: (done: number, total: number) => void
+  ): Promise<{ imported: number; skipped: number }> {
     const uid = this.auth.uid();
     if (!uid) throw new Error('Not authenticated');
 
     const toImport = rows.filter((r) => !r.isDuplicate);
     const ref = collection(this.firestore, `users/${uid}/transactions`);
     const chunkSize = 400;
+    let committed = 0;
+
+    onProgress?.(0, toImport.length);
 
     for (let i = 0; i < toImport.length; i += chunkSize) {
       const chunk = toImport.slice(i, i + chunkSize);
@@ -184,6 +191,8 @@ export class TransactionService {
         });
       });
       await batch.commit();
+      committed += chunk.length;
+      onProgress?.(committed, toImport.length);
     }
 
     return { imported: toImport.length, skipped: rows.length - toImport.length };
@@ -209,18 +218,26 @@ export class TransactionService {
   }
 
   /** Deletes the given transaction docs in batches of 400. */
-  async removeMany(ids: string[]): Promise<number> {
+  async removeMany(
+    ids: string[],
+    onProgress?: (done: number, total: number) => void
+  ): Promise<number> {
     const uid = this.auth.uid();
     if (!uid) throw new Error('Not authenticated');
     if (ids.length === 0) return 0;
 
     const chunkSize = 400;
+    let deleted = 0;
+    onProgress?.(0, ids.length);
+
     for (let i = 0; i < ids.length; i += chunkSize) {
       const batch = writeBatch(this.firestore);
       ids.slice(i, i + chunkSize).forEach((id) => {
         batch.delete(doc(this.firestore, `users/${uid}/transactions/${id}`));
       });
       await batch.commit();
+      deleted += Math.min(chunkSize, ids.length - i);
+      onProgress?.(deleted, ids.length);
     }
     return ids.length;
   }
@@ -229,7 +246,7 @@ export class TransactionService {
    * Deletes every transaction for the signed-in user.
    * Pages through the collection so large datasets and cache/server mismatches still clear.
    */
-  async removeAll(): Promise<number> {
+  async removeAll(onProgress?: (deleted: number) => void): Promise<number> {
     const uid = this.auth.uid();
     if (!uid) throw new Error('Not authenticated');
 
@@ -245,6 +262,7 @@ export class TransactionService {
       snap.docs.forEach((d) => batch.delete(d.ref));
       await batch.commit();
       deleted += snap.size;
+      onProgress?.(deleted);
     }
 
     return deleted;

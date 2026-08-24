@@ -1,5 +1,5 @@
 import { CurrencyPipe, DatePipe } from '@angular/common';
-import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
+import { Component, computed, inject, input, linkedSignal, output, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -99,7 +99,7 @@ import { ImportService } from '../../core/services/import.service';
                   (selectionChange)="updateMapping(field.key, $event.value)"
                 >
                   <mat-option [value]="null">Not mapped</mat-option>
-                  @for (header of headers(); track header) {
+                  @for (header of headers(); track $index) {
                     <mat-option [value]="header">{{ header }}</mat-option>
                   }
                 </mat-select>
@@ -119,7 +119,7 @@ import { ImportService } from '../../core/services/import.service';
                   (selectionChange)="updateMapping(field.key, $event.value)"
                 >
                   <mat-option [value]="null">Not mapped</mat-option>
-                  @for (header of headers(); track header) {
+                  @for (header of headers(); track $index) {
                     <mat-option [value]="header">{{ header }}</mat-option>
                   }
                 </mat-select>
@@ -235,7 +235,15 @@ export class ImportMapperComponent {
   readonly continueImport = output<ImportProfileConfig>();
   readonly profileSaved = output<ImportProfileConfig>();
 
-  readonly profile = signal<ImportProfileConfig>(this.initialProfile());
+  /** Resets when parent headers/profile change; stays writable for local mapping edits. */
+  readonly profile = linkedSignal({
+    source: () => ({
+      initial: this.initialProfile(),
+      headers: this.headers(),
+    }),
+    computation: ({ initial, headers }) =>
+      remapProfileToHeaders(this.profileService.clone(initial), headers),
+  });
   readonly presets = signal(this.profileService.listSelectableProfiles());
   readonly previewColumns = ['row', 'postedAt', 'merchant', 'amount', 'kind', 'status'];
 
@@ -262,14 +270,6 @@ export class ImportMapperComponent {
 
   readonly previewErrorCount = computed(() => this.previewLines().filter((row) => !!row.error).length);
   readonly previewOkCount = computed(() => this.previewLines().filter((row) => !row.error).length);
-
-  constructor() {
-    effect(() => {
-      const initial = this.profileService.clone(this.initialProfile());
-      const headers = this.headers();
-      this.profile.set(remapProfileToHeaders(initial, headers));
-    });
-  }
 
   onPresetChange(id: string): void {
     const preset = this.profileService.getProfileById(id);

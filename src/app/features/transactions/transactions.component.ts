@@ -20,7 +20,7 @@ import { AccountService } from '../../core/services/account.service';
 import { CategoryService } from '../../core/services/category.service';
 import { ImportProgress, ImportService } from '../../core/services/import.service';
 import { ImportProfileService } from '../../core/services/import-profile.service';
-import { profileFromHeaders } from '../../core/import/import-profiles';
+import { profileFromHeaders, remapProfileToHeaders } from '../../core/import/import-profiles';
 import { ImportProfileConfig, RawCsvRow } from '../../core/models/import.model';
 import { TransactionService } from '../../core/services/transaction.service';
 import { computeAccountBalance } from '../../core/utils/balance.util';
@@ -43,6 +43,9 @@ import { ImportMapperComponent } from './import-mapper.component';
 import { confirmDialog } from '../../shared/confirm-dialog/confirm-dialog.component';
 
 type ImportStep = 'upload' | 'map' | 'review';
+type ImportReviewFilter = 'all' | 'ready' | 'duplicates';
+
+const IMPORT_REVIEW_PAGE_SIZE = 25;
 
 @Component({
   selector: 'app-transactions',
@@ -84,7 +87,11 @@ type ImportStep = 'upload' | 'map' | 'review';
           </p>
         </div>
         <div class="flex shrink-0 flex-wrap gap-2 self-start">
-          <button mat-stroked-button (click)="toggleImport()">
+          <button
+            mat-stroked-button
+            (click)="toggleImport()"
+            [disabled]="clearing() || importing()"
+          >
             <mat-icon>upload_file</mat-icon>
             Import CSV
           </button>
@@ -93,17 +100,35 @@ type ImportStep = 'upload' | 'map' | 'review';
             color="warn"
             type="button"
             (click)="clearAllTransactions()"
-            [disabled]="transactionCount() === 0 || clearing()"
+            [disabled]="transactionCount() === 0 || clearing() || importing()"
           >
             <mat-icon>delete_sweep</mat-icon>
             {{ clearing() ? 'Clearing…' : 'Clear all' }}
           </button>
-          <button mat-flat-button color="primary" (click)="openAdd()">
+          <button
+            mat-flat-button
+            color="primary"
+            (click)="openAdd()"
+            [disabled]="clearing() || importing()"
+          >
             <mat-icon>add</mat-icon>
             Add transaction
           </button>
         </div>
       </div>
+
+      @if (clearing()) {
+        <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4" role="status" aria-live="polite">
+          <div class="mb-2 flex items-center justify-between gap-3">
+            <div>
+              <p class="font-semibold text-amber-900">Clearing transactions…</p>
+              <p class="mt-1 text-sm text-amber-800">{{ clearProgress().message }}</p>
+            </div>
+            <span class="text-sm font-semibold text-amber-900">{{ clearProgress().progress }}%</span>
+          </div>
+          <mat-progress-bar mode="determinate" [value]="clearProgress().progress" color="warn" />
+        </div>
+      }
 
       @if (showImport()) {
         <mat-card class="app-card">
@@ -115,157 +140,253 @@ type ImportStep = 'upload' | 'map' | 'review';
                   Upload a CSV, verify the column mapping, then review duplicates before anything is saved.
                 </p>
               </div>
-              <button mat-icon-button aria-label="Close import" (click)="closeImport()">
+              <button
+                mat-icon-button
+                aria-label="Close import"
+                (click)="closeImport()"
+                [disabled]="parsing() || importing()"
+              >
                 <mat-icon>close</mat-icon>
               </button>
             </div>
 
-            <div class="grid gap-2 sm:grid-cols-3" aria-label="Import steps">
-              <div class="rounded-2xl border px-3 py-2" [class]="importStepClass('upload')">
-                <p class="text-xs font-semibold uppercase tracking-wide">Step 1</p>
-                <p class="text-sm font-semibold">Upload</p>
-              </div>
-              <div class="rounded-2xl border px-3 py-2" [class]="importStepClass('map')">
-                <p class="text-xs font-semibold uppercase tracking-wide">Step 2</p>
-                <p class="text-sm font-semibold">Map columns</p>
-              </div>
-              <div class="rounded-2xl border px-3 py-2" [class]="importStepClass('review')">
-                <p class="text-xs font-semibold uppercase tracking-wide">Step 3</p>
-                <p class="text-sm font-semibold">Review</p>
-              </div>
-            </div>
-
-            <form [formGroup]="importForm" class="rounded-2xl border border-line bg-white p-4">
-              <mat-form-field>
-                <mat-label>Import into account</mat-label>
-                <mat-select formControlName="accountId" (selectionChange)="onImportAccountChange()">
-                  @for (a of accounts(); track a.id) {
-                    <mat-option [value]="a.id">{{ a.name }} ({{ a.type }})</mat-option>
-                  }
-                </mat-select>
-                <mat-hint>Transactions will be attached to this account.</mat-hint>
-              </mat-form-field>
-            </form>
-
-            @if (importStep() === 'upload') {
-              <label
-                class="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-line bg-action-soft/60 p-8 text-center transition-colors hover:border-action hover:bg-action-soft"
-                [class.pointer-events-none]="parsing() || importForm.invalid"
-                [class.opacity-60]="parsing() || importForm.invalid"
-              >
-                <mat-icon class="!mb-2 !h-8 !w-8 !text-3xl !text-action">upload_file</mat-icon>
-                <span class="font-semibold text-ink">
-                  {{ importForm.invalid ? 'Choose an account first' : 'Upload CSV file' }}
-                </span>
-                <span class="mt-1 max-w-sm text-sm text-slate-500">
-                  CSV files are parsed in your browser. Only confirmed transactions are saved.
-                </span>
-                <input
-                  #csvInput
-                  type="file"
-                  accept=".csv"
-                  class="hidden"
-                  [disabled]="parsing() || importForm.invalid"
-                  (change)="onImportFile($event)"
-                />
-              </label>
-            }
-
-            @if (importStep() === 'map' && csvHeaders().length) {
-              <app-import-mapper
-                [headers]="csvHeaders()"
-                [rows]="rawCsvRows()"
-                [initialProfile]="importProfile()"
-                (continueImport)="onContinueMapping($event)"
-              />
-              <button mat-button type="button" (click)="resetImportFile()">Choose a different file</button>
-            }
-
             @if (parsing() || importing()) {
-              <div class="rounded-2xl border border-line bg-white p-4">
-                <div class="mb-2 flex items-center justify-between text-sm text-slate-600">
-                  <span>{{ importProgress().message }}</span>
-                  <span>{{ importProgress().progress }}%</span>
+              <div
+                class="rounded-2xl border border-action/30 bg-action-soft p-5"
+                role="status"
+                aria-live="polite"
+              >
+                <div class="mb-3 flex items-start justify-between gap-3">
+                  <div>
+                    <p class="font-semibold text-ink">
+                      @if (parsing()) {
+                        Reading CSV…
+                      } @else if (importStep() === 'review') {
+                        Importing transactions…
+                      } @else {
+                        Preparing review…
+                      }
+                    </p>
+                    <p class="mt-1 text-sm text-slate-600">{{ importProgress().message }}</p>
+                  </div>
+                  <span class="text-sm font-semibold text-action">{{ importProgress().progress }}%</span>
                 </div>
                 <mat-progress-bar mode="determinate" [value]="importProgress().progress" />
+                <p class="mt-3 text-xs text-slate-500">
+                  Keep this tab open until the import finishes.
+                </p>
               </div>
-            } @else if (importStatus()) {
-              <div class="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
-                <p class="font-semibold text-emerald-800">{{ importStatus() }}</p>
-                <p class="mt-1 text-sm text-emerald-700">Review uncategorized rows next to keep reports accurate.</p>
-                <button mat-stroked-button type="button" class="!mt-3" (click)="showInbox()">
-                  Review uncategorized
-                </button>
+            } @else {
+              <div class="grid gap-2 sm:grid-cols-3" aria-label="Import steps">
+                <div class="rounded-2xl border px-3 py-2" [class]="importStepClass('upload')">
+                  <p class="text-xs font-semibold uppercase tracking-wide">Step 1</p>
+                  <p class="text-sm font-semibold">Upload</p>
+                </div>
+                <div class="rounded-2xl border px-3 py-2" [class]="importStepClass('map')">
+                  <p class="text-xs font-semibold uppercase tracking-wide">Step 2</p>
+                  <p class="text-sm font-semibold">Map columns</p>
+                </div>
+                <div class="rounded-2xl border px-3 py-2" [class]="importStepClass('review')">
+                  <p class="text-xs font-semibold uppercase tracking-wide">Step 3</p>
+                  <p class="text-sm font-semibold">Review</p>
+                </div>
               </div>
+
+              <form [formGroup]="importForm" class="rounded-2xl border border-line bg-white p-4">
+                <mat-form-field>
+                  <mat-label>Import into account</mat-label>
+                  <mat-select formControlName="accountId" (selectionChange)="onImportAccountChange()">
+                    @for (a of accounts(); track a.id) {
+                      <mat-option [value]="a.id">{{ a.name }} ({{ a.type }})</mat-option>
+                    }
+                  </mat-select>
+                  <mat-hint>Transactions will be attached to this account.</mat-hint>
+                </mat-form-field>
+              </form>
+
+              @if (importStep() === 'upload') {
+                <label
+                  class="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-line bg-action-soft/60 p-8 text-center transition-colors hover:border-action hover:bg-action-soft"
+                  [class.pointer-events-none]="importForm.invalid"
+                  [class.opacity-60]="importForm.invalid"
+                >
+                  <mat-icon class="!mb-2 !h-8 !w-8 !text-3xl !text-action">upload_file</mat-icon>
+                  <span class="font-semibold text-ink">
+                    {{ importForm.invalid ? 'Choose an account first' : 'Upload CSV file' }}
+                  </span>
+                  <span class="mt-1 max-w-sm text-sm text-slate-500">
+                    CSV files are parsed in your browser. Only confirmed transactions are saved.
+                  </span>
+                  <input
+                    #csvInput
+                    type="file"
+                    accept=".csv"
+                    class="hidden"
+                    [disabled]="importForm.invalid"
+                    (change)="onImportFile($event)"
+                  />
+                </label>
+              }
+
+              @if (importStep() === 'map') {
+                @if (csvHeaders().length) {
+                  <app-import-mapper
+                    [headers]="csvHeaders()"
+                    [rows]="rawCsvRows()"
+                    [initialProfile]="importProfile()"
+                    (continueImport)="onContinueMapping($event)"
+                  />
+                  <button mat-button type="button" (click)="resetImportFile()">Choose a different file</button>
+                } @else {
+                  <div class="rounded-2xl border border-amber-100 bg-amber-50 p-4">
+                    <p class="font-semibold text-amber-800">We couldn't find column headers in this CSV.</p>
+                    <p class="mt-1 text-sm text-amber-700">
+                      Make sure the first row contains labels like Date, Description, and Amount, then upload again.
+                    </p>
+                    <button mat-stroked-button type="button" class="!mt-3" (click)="resetImportFile()">
+                      Choose a different file
+                    </button>
+                  </div>
+                }
+                @if (importStatus()) {
+                  <p class="text-sm text-slate-600">{{ importStatus() }}</p>
+                }
+              }
+
+              @if (importStep() === 'review' && importPreview().length) {
+                <div class="space-y-4 rounded-2xl border border-line bg-white p-4">
+                  <div class="grid gap-3 sm:grid-cols-3">
+                    <div class="metric">
+                      <p class="kicker">Rows reviewed</p>
+                      <p class="money mt-1 text-2xl font-semibold text-ink">{{ importPreview().length }}</p>
+                    </div>
+                    <div class="metric">
+                      <p class="kicker">Ready to import</p>
+                      <p class="money mt-1 text-2xl font-semibold text-action">{{ importNewCount() }}</p>
+                    </div>
+                    <div class="metric">
+                      <p class="kicker">Duplicates skipped</p>
+                      <p class="money mt-1 text-2xl font-semibold text-amber-700">{{ importDuplicateCount() }}</p>
+                    </div>
+                  </div>
+
+                  <div class="flex flex-wrap items-center gap-3">
+                    <button mat-stroked-button type="button" (click)="backToMapping()">Back to mapping</button>
+                    <button
+                      mat-flat-button
+                      color="primary"
+                      (click)="confirmImport()"
+                      [disabled]="importNewCount() === 0"
+                    >
+                      Import {{ importNewCount() }} new transactions
+                    </button>
+                    <p class="text-sm text-slate-500">
+                      {{ importDuplicateCount() }} duplicates will be skipped automatically.
+                    </p>
+                  </div>
+                </div>
+
+                <div class="space-y-3 rounded-2xl border border-line bg-white p-4">
+                  <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="flex flex-wrap gap-2">
+                      <button
+                        mat-stroked-button
+                        type="button"
+                        [color]="importReviewFilter() === 'all' ? 'primary' : undefined"
+                        (click)="setImportReviewFilter('all')"
+                      >
+                        All ({{ importPreview().length }})
+                      </button>
+                      <button
+                        mat-stroked-button
+                        type="button"
+                        [color]="importReviewFilter() === 'ready' ? 'primary' : undefined"
+                        (click)="setImportReviewFilter('ready')"
+                      >
+                        Ready ({{ importNewCount() }})
+                      </button>
+                      <button
+                        mat-stroked-button
+                        type="button"
+                        [color]="importReviewFilter() === 'duplicates' ? 'primary' : undefined"
+                        (click)="setImportReviewFilter('duplicates')"
+                      >
+                        Duplicates ({{ importDuplicateCount() }})
+                      </button>
+                    </div>
+                    <p class="text-sm text-slate-500">
+                      Showing {{ importReviewRangeLabel() }} of {{ importReviewFiltered().length }}
+                    </p>
+                  </div>
+
+                  <div class="overflow-x-auto rounded-xl border border-line">
+                    <table mat-table [dataSource]="importReviewPageRows()" class="w-full min-w-[640px]">
+                      <ng-container matColumnDef="postedAt">
+                        <th mat-header-cell *matHeaderCellDef>Date</th>
+                        <td mat-cell *matCellDef="let row">{{ row.postedAt | date: 'mediumDate' }}</td>
+                      </ng-container>
+                      <ng-container matColumnDef="merchant">
+                        <th mat-header-cell *matHeaderCellDef>Merchant</th>
+                        <td mat-cell *matCellDef="let row" class="max-w-xs truncate">{{ row.merchant }}</td>
+                      </ng-container>
+                      <ng-container matColumnDef="amount">
+                        <th mat-header-cell *matHeaderCellDef>Amount</th>
+                        <td mat-cell *matCellDef="let row">{{ row.amount | currency }}</td>
+                      </ng-container>
+                      <ng-container matColumnDef="kind">
+                        <th mat-header-cell *matHeaderCellDef>Kind</th>
+                        <td mat-cell *matCellDef="let row">{{ row.kind }}</td>
+                      </ng-container>
+                      <ng-container matColumnDef="status">
+                        <th mat-header-cell *matHeaderCellDef>Status</th>
+                        <td mat-cell *matCellDef="let row">
+                          <span
+                            class="font-medium"
+                            [class]="row.isDuplicate ? 'text-amber-600' : 'text-action'"
+                          >
+                            {{ row.isDuplicate ? 'Already imported, skipped' : 'Ready' }}
+                          </span>
+                        </td>
+                      </ng-container>
+                      <tr mat-header-row *matHeaderRowDef="importColumns"></tr>
+                      <tr mat-row *matRowDef="let row; columns: importColumns"></tr>
+                    </table>
+                  </div>
+
+                  <div class="flex flex-wrap items-center justify-between gap-3">
+                    <p class="text-sm text-slate-500">
+                      Page {{ importReviewPage() + 1 }} of {{ importReviewPageCount() }}
+                    </p>
+                    <div class="flex gap-2">
+                      <button
+                        mat-stroked-button
+                        type="button"
+                        [disabled]="importReviewPage() === 0"
+                        (click)="prevImportReviewPage()"
+                      >
+                        Previous
+                      </button>
+                      <button
+                        mat-stroked-button
+                        type="button"
+                        [disabled]="importReviewPage() >= importReviewPageCount() - 1"
+                        (click)="nextImportReviewPage()"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              }
+
+              @if (importStatus() && importStep() === 'upload') {
+                <div class="rounded-2xl border border-red-100 bg-red-50 p-4">
+                  <p class="font-semibold text-red-800">{{ importStatus() }}</p>
+                </div>
+              }
             }
           </mat-card-content>
         </mat-card>
-
-        @if (importStep() === 'review' && importPreview().length) {
-          <div class="grid gap-3 sm:grid-cols-3">
-            <div class="metric">
-              <p class="kicker">Rows reviewed</p>
-              <p class="money mt-1 text-2xl font-semibold text-ink">{{ importPreview().length }}</p>
-            </div>
-            <div class="metric">
-              <p class="kicker">Ready to import</p>
-              <p class="money mt-1 text-2xl font-semibold text-action">{{ importNewCount() }}</p>
-            </div>
-            <div class="metric">
-              <p class="kicker">Duplicates skipped</p>
-              <p class="money mt-1 text-2xl font-semibold text-amber-700">{{ importDuplicateCount() }}</p>
-            </div>
-          </div>
-
-          <div class="app-card overflow-x-auto">
-            <table mat-table [dataSource]="importPreview()" class="w-full min-w-[640px]">
-              <ng-container matColumnDef="postedAt">
-                <th mat-header-cell *matHeaderCellDef>Date</th>
-                <td mat-cell *matCellDef="let row">{{ row.postedAt | date: 'mediumDate' }}</td>
-              </ng-container>
-              <ng-container matColumnDef="merchant">
-                <th mat-header-cell *matHeaderCellDef>Merchant</th>
-                <td mat-cell *matCellDef="let row" class="max-w-xs truncate">{{ row.merchant }}</td>
-              </ng-container>
-              <ng-container matColumnDef="amount">
-                <th mat-header-cell *matHeaderCellDef>Amount</th>
-                <td mat-cell *matCellDef="let row">{{ row.amount | currency }}</td>
-              </ng-container>
-              <ng-container matColumnDef="kind">
-                <th mat-header-cell *matHeaderCellDef>Kind</th>
-                <td mat-cell *matCellDef="let row">{{ row.kind }}</td>
-              </ng-container>
-              <ng-container matColumnDef="status">
-                <th mat-header-cell *matHeaderCellDef>Status</th>
-                <td mat-cell *matCellDef="let row">
-                  <span
-                    class="font-medium"
-                    [class]="row.isDuplicate ? 'text-amber-600' : 'text-action'"
-                  >
-                    {{ row.isDuplicate ? 'Already imported, skipped' : 'Ready' }}
-                  </span>
-                </td>
-              </ng-container>
-              <tr mat-header-row *matHeaderRowDef="importColumns"></tr>
-              <tr mat-row *matRowDef="let row; columns: importColumns"></tr>
-            </table>
-          </div>
-
-          <div class="flex flex-wrap items-center gap-3">
-            <button mat-stroked-button type="button" (click)="backToMapping()">Back to mapping</button>
-            <button
-              mat-flat-button
-              color="primary"
-              (click)="confirmImport()"
-              [disabled]="importing() || importNewCount() === 0"
-            >
-              Import {{ importNewCount() }} new transactions
-            </button>
-            <p class="text-sm text-slate-500">
-              {{ importDuplicateCount() }} duplicates will be skipped automatically.
-            </p>
-          </div>
-        }
       }
 
       <div class="app-card p-4" [formGroup]="filters">
@@ -515,18 +636,23 @@ export class TransactionsComponent implements OnInit {
   readonly importing = signal(false);
   readonly clearing = signal(false);
   readonly importPreview = signal<ParsedImportRow[]>([]);
+  readonly importReviewFilter = signal<ImportReviewFilter>('all');
+  readonly importReviewPage = signal(0);
   readonly importStatus = signal<string | null>(null);
   readonly importProgress = signal<ImportProgress>({
     phase: 'parsing',
     progress: 0,
     message: 'Starting…',
   });
+  readonly clearProgress = signal({ progress: 0, message: 'Starting…' });
 
   private resetImportState(): void {
     this.importStep.set('upload');
     this.csvHeaders.set([]);
     this.rawCsvRows.set([]);
     this.importPreview.set([]);
+    this.importReviewFilter.set('all');
+    this.importReviewPage.set(0);
     this.importStatus.set(null);
     this.parsing.set(false);
     this.importing.set(false);
@@ -544,6 +670,50 @@ export class TransactionsComponent implements OnInit {
   readonly importDuplicateCount = computed(() =>
     this.importPreview().filter((r) => r.isDuplicate).length
   );
+
+  readonly importReviewFiltered = computed(() => {
+    const rows = this.importPreview();
+    switch (this.importReviewFilter()) {
+      case 'ready':
+        return rows.filter((r) => !r.isDuplicate);
+      case 'duplicates':
+        return rows.filter((r) => r.isDuplicate);
+      default:
+        return rows;
+    }
+  });
+
+  readonly importReviewPageCount = computed(() =>
+    Math.max(1, Math.ceil(this.importReviewFiltered().length / IMPORT_REVIEW_PAGE_SIZE))
+  );
+
+  readonly importReviewPageRows = computed(() => {
+    const page = Math.min(this.importReviewPage(), this.importReviewPageCount() - 1);
+    const start = page * IMPORT_REVIEW_PAGE_SIZE;
+    return this.importReviewFiltered().slice(start, start + IMPORT_REVIEW_PAGE_SIZE);
+  });
+
+  readonly importReviewRangeLabel = computed(() => {
+    const total = this.importReviewFiltered().length;
+    if (!total) return '0–0';
+    const page = Math.min(this.importReviewPage(), this.importReviewPageCount() - 1);
+    const start = page * IMPORT_REVIEW_PAGE_SIZE + 1;
+    const end = Math.min(total, start + IMPORT_REVIEW_PAGE_SIZE - 1);
+    return `${start}–${end}`;
+  });
+
+  setImportReviewFilter(filter: ImportReviewFilter): void {
+    this.importReviewFilter.set(filter);
+    this.importReviewPage.set(0);
+  }
+
+  prevImportReviewPage(): void {
+    this.importReviewPage.update((page) => Math.max(0, page - 1));
+  }
+
+  nextImportReviewPage(): void {
+    this.importReviewPage.update((page) => Math.min(this.importReviewPageCount() - 1, page + 1));
+  }
 
   readonly importForm = this.fb.nonNullable.group({
     accountId: ['', Validators.required],
@@ -754,12 +924,16 @@ export class TransactionsComponent implements OnInit {
     this.csvHeaders.set([]);
     this.rawCsvRows.set([]);
     this.importPreview.set([]);
+    this.importReviewFilter.set('all');
+    this.importReviewPage.set(0);
     this.importStatus.set(null);
   }
 
   backToMapping(): void {
     this.importStep.set('map');
     this.importPreview.set([]);
+    this.importReviewFilter.set('all');
+    this.importReviewPage.set(0);
     this.importStatus.set(null);
   }
 
@@ -794,15 +968,20 @@ export class TransactionsComponent implements OnInit {
 
     try {
       const parsed = await this.importService.parseCsvFile(file, (p) => this.updateImportProgress(p));
-      if (!parsed.headers.length) {
-        throw new Error('No column headers found in CSV.');
-      }
-
-      this.csvHeaders.set(parsed.headers);
+      const headers = parsed.headers;
+      this.csvHeaders.set(headers);
       this.rawCsvRows.set(parsed.rows);
 
+      if (!headers.length) {
+        this.importStep.set('map');
+        this.importStatus.set(null);
+        return;
+      }
+
       const saved = this.importProfileService.getLastUsedForAccount(accountId);
-      const profile = saved ?? profileFromHeaders(parsed.headers);
+      const profile = saved
+        ? remapProfileToHeaders(this.importProfileService.clone(saved), headers)
+        : profileFromHeaders(headers);
       this.importProfile.set(profile);
       this.importStep.set('map');
       this.importStatus.set(`${parsed.rows.length} rows loaded. Map your columns below.`);
@@ -834,6 +1013,8 @@ export class TransactionsComponent implements OnInit {
       this.importProfile.set(profile);
       this.importProfileService.rememberForAccount(accountId, profile);
       this.importPreview.set(mapped);
+      this.importReviewFilter.set('all');
+      this.importReviewPage.set(0);
       this.importStep.set('review');
       this.importStatus.set(
         `Mapped ${mapped.length} of ${this.rawCsvRows().length} rows. Review before importing.`
@@ -848,12 +1029,42 @@ export class TransactionsComponent implements OnInit {
   async confirmImport(): Promise<void> {
     const accountId = this.importForm.value.accountId;
     if (!accountId || !this.importPreview().length) return;
+    const rows = this.importPreview();
+    const readyCount = rows.filter((r) => !r.isDuplicate).length;
+
     this.importing.set(true);
+    this.updateImportProgress({
+      phase: 'mapping',
+      progress: 0,
+      message: `Saving 0 of ${readyCount} transactions…`,
+    });
+
     try {
-      const result = await this.transactionService.importBatch(accountId, this.importPreview());
-      this.importStatus.set(`Imported ${result.imported}, skipped ${result.skipped} duplicates.`);
-      this.importPreview.set([]);
+      const result = await this.transactionService.importBatch(accountId, rows, (done, total) => {
+        const pct = total === 0 ? 100 : Math.round((done / total) * 100);
+        this.updateImportProgress({
+          phase: 'mapping',
+          progress: pct,
+          message:
+            done >= total
+              ? `Saved ${total} transaction${total === 1 ? '' : 's'}. Finishing…`
+              : `Saving ${done} of ${total} transactions…`,
+        });
+      });
       this.filters.patchValue({ accountId });
+      this.closeImport();
+      const count = result.imported;
+      this.snack.open(
+        `${count} transaction${count === 1 ? '' : 's'} imported`,
+        'Dismiss',
+        { duration: 4000 }
+      );
+    } catch (e: unknown) {
+      this.snack.open(
+        e instanceof Error ? e.message : 'Import failed. Please try again.',
+        'Dismiss',
+        { duration: 5000 }
+      );
     } finally {
       this.importing.set(false);
     }
@@ -949,11 +1160,38 @@ export class TransactionsComponent implements OnInit {
     if (!confirmed) return;
 
     this.clearing.set(true);
+    this.clearProgress.set({
+      progress: 0,
+      message: `Deleting 0 of ${ids.length} transactions…`,
+    });
+
     try {
       // Delete what the UI already knows about first (reliable path).
-      await this.transactionService.removeMany(ids);
+      await this.transactionService.removeMany(ids, (done, total) => {
+        const pct = total === 0 ? 100 : Math.min(90, Math.round((done / total) * 90));
+        this.clearProgress.set({
+          progress: pct,
+          message: `Deleting ${done} of ${total} transactions…`,
+        });
+      });
+
+      this.clearProgress.set({
+        progress: 92,
+        message: 'Checking for any remaining transactions…',
+      });
+
       // Sweep any leftovers that weren't in the live query snapshot.
-      const swept = await this.transactionService.removeAll();
+      const swept = await this.transactionService.removeAll((deleted) => {
+        this.clearProgress.set({
+          progress: Math.min(99, 92 + Math.min(7, deleted)),
+          message:
+            deleted > 0
+              ? `Removed ${deleted} remaining transaction${deleted === 1 ? '' : 's'}…`
+              : 'Checking for any remaining transactions…',
+        });
+      });
+
+      this.clearProgress.set({ progress: 100, message: 'Done.' });
       const total = Math.max(ids.length, swept);
       this.snack.open(`Deleted ${total} transaction${total === 1 ? '' : 's'}.`, 'Dismiss', {
         duration: 4000,
