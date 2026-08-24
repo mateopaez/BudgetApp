@@ -301,17 +301,31 @@ const WEEK_DAY_VISIBLE_CAP = 5;
           </mat-card-content>
         </mat-card>
 
-        <mat-card class="app-card">
-          <mat-card-header>
-            <mat-card-title class="!text-base !text-ink">
-              {{ editingId() ? 'Edit scheduled item' : 'Add bill / paycheck' }}
-            </mat-card-title>
-            <mat-card-subtitle>
-              New items post a matching transaction so balances update
-            </mat-card-subtitle>
-          </mat-card-header>
-          <mat-card-content>
-            <form class="flex flex-col gap-1" [formGroup]="form" (ngSubmit)="saveItem()">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <h2 class="text-base font-semibold text-ink">Scheduled bills & paychecks</h2>
+            <p class="text-sm text-slate-500">Keep predictable money movement visible before it happens.</p>
+          </div>
+          @if (!showScheduleForm() && !editingId()) {
+            <button mat-flat-button color="primary" type="button" (click)="startNewItem()">
+              <mat-icon>add</mat-icon>
+              Add item
+            </button>
+          }
+        </div>
+
+        @if (showScheduleForm() || editingId()) {
+          <mat-card class="app-card">
+            <mat-card-header>
+              <mat-card-title class="!text-base !text-ink">
+                {{ editingId() ? 'Edit scheduled item' : 'Add bill / paycheck' }}
+              </mat-card-title>
+              <mat-card-subtitle>
+                Saving creates matching transactions on scheduled dates so balances and reports stay current.
+              </mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
+              <form class="flex flex-col gap-1" [formGroup]="form" (ngSubmit)="saveItem()">
               <mat-form-field>
                 <mat-label>Title</mat-label>
                 <input matInput formControlName="title" autocomplete="off" />
@@ -403,13 +417,12 @@ const WEEK_DAY_VISIBLE_CAP = 5;
                 >
                   {{ editingId() ? 'Save' : 'Add' }}
                 </button>
-                @if (editingId()) {
-                  <button mat-button type="button" (click)="cancelEdit()">Cancel</button>
-                }
+                <button mat-button type="button" (click)="cancelEdit()">Cancel</button>
               </div>
             </form>
           </mat-card-content>
         </mat-card>
+        }
       </div>
 
       <mat-card class="app-card">
@@ -448,7 +461,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
               </li>
             } @empty {
               <li class="px-4 py-5 text-center text-sm text-slate-500">
-                Add rent, paycheck, or subscriptions above.
+                No scheduled items yet. Add rent, paychecks, subscriptions, or one-time bills to plan ahead.
               </li>
             }
           </ul>
@@ -477,6 +490,7 @@ export class CalendarComponent {
   readonly selectedDate = signal(startOfDay(new Date()));
   readonly viewMode = signal<CalendarView>('month');
   readonly editingId = signal<string | null>(null);
+  readonly showScheduleForm = signal(false);
   readonly saving = signal(false);
 
   readonly dayKey = dayKey;
@@ -728,7 +742,13 @@ export class CalendarComponent {
     return item.scheduleType;
   }
 
+  startNewItem(): void {
+    this.cancelEdit();
+    this.showScheduleForm.set(true);
+  }
+
   startEdit(item: ScheduledItem): void {
+    this.showScheduleForm.set(true);
     this.editingId.set(item.id);
     this.form.patchValue({
       title: item.title,
@@ -746,6 +766,7 @@ export class CalendarComponent {
   }
 
   cancelEdit(): void {
+    this.showScheduleForm.set(false);
     this.editingId.set(null);
     const defaultAccount =
       this.accounts().find((a) => a.type === 'checking')?.id ?? this.accounts()[0]?.id ?? '';

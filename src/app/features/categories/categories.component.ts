@@ -34,9 +34,37 @@ import { confirmDialog } from '../../shared/confirm-dialog/confirm-dialog.compon
   ],
   template: `
     <div class="space-y-6">
-      <div class="page-header">
-        <h1 class="page-title">Budgets</h1>
-        <p class="page-subtitle">Set monthly guardrails and keep category spending easy to understand</p>
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div class="page-header">
+          <h1 class="page-title">Budgets</h1>
+          <p class="page-subtitle">Set monthly guardrails and keep category spending easy to understand</p>
+        </div>
+        @if (!showAddCategory()) {
+          <button mat-flat-button color="primary" type="button" (click)="showAddCategory.set(true)">
+            <mat-icon>add</mat-icon>
+            Add category
+          </button>
+        }
+      </div>
+
+      <div class="grid gap-3 sm:grid-cols-3">
+        <div class="metric">
+          <p class="kicker">Spent this month</p>
+          <p class="money mt-1 text-2xl font-semibold text-finance-expense">{{ budgetSummary().spent | currency }}</p>
+        </div>
+        <div class="metric">
+          <p class="kicker">Budgeted</p>
+          <p class="money mt-1 text-2xl font-semibold text-action">{{ budgetSummary().budgeted | currency }}</p>
+        </div>
+        <div class="metric">
+          <p class="kicker">Remaining</p>
+          <p
+            class="money mt-1 text-2xl font-semibold"
+            [class]="budgetSummary().remaining < 0 ? 'text-red-600' : 'text-emerald-700'"
+          >
+            {{ budgetSummary().remaining | currency }}
+          </p>
+        </div>
       </div>
 
       <mat-card class="app-card">
@@ -48,13 +76,24 @@ import { confirmDialog } from '../../shared/confirm-dialog/confirm-dialog.compon
           </mat-card-subtitle>
         </mat-card-header>
         <mat-card-content class="space-y-4">
-          <form class="flex flex-col gap-3 sm:flex-row sm:items-start" [formGroup]="addForm" (ngSubmit)="addCategory()">
-            <mat-form-field class="flex-1">
-              <mat-label>New category</mat-label>
-              <input matInput formControlName="name" />
-            </mat-form-field>
-            <button mat-flat-button color="primary" type="submit" class="!mt-1 shrink-0">Add</button>
-          </form>
+          @if (showAddCategory()) {
+            <form class="rounded-2xl border border-line bg-action-soft/40 p-4" [formGroup]="addForm" (ngSubmit)="addCategory()">
+              <div class="mb-3">
+                <p class="font-semibold text-ink">Add category</p>
+                <p class="text-sm text-slate-500">Use categories for spending groups you want to review or budget.</p>
+              </div>
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-start">
+                <mat-form-field class="flex-1">
+                  <mat-label>Category name</mat-label>
+                  <input matInput formControlName="name" autocomplete="off" />
+                </mat-form-field>
+                <div class="flex gap-2">
+                  <button mat-flat-button color="primary" type="submit" class="shrink-0">Add</button>
+                  <button mat-stroked-button type="button" (click)="cancelAddCategory()">Cancel</button>
+                </div>
+              </div>
+            </form>
+          }
 
           <ul class="m-0 list-none divide-y divide-line overflow-hidden rounded-xl border border-line p-0">
             @for (row of categoryRows(); track row.cat.id) {
@@ -165,6 +204,8 @@ export class CategoriesComponent {
   private readonly transactionService = inject(TransactionService);
   private readonly dialog = inject(MatDialog);
 
+  readonly showAddCategory = signal(false);
+
   readonly Math = Math;
   readonly abs = Math.abs;
 
@@ -210,10 +251,27 @@ export class CategoriesComponent {
     });
   });
 
+  readonly budgetSummary = computed(() => {
+    const rows = this.categoryRows().filter((row) => !row.cat.isSystem && row.budget);
+    const spent = rows.reduce((sum, row) => sum + row.spent, 0);
+    const budgeted = rows.reduce((sum, row) => sum + (row.budget?.amount ?? 0), 0);
+    return {
+      spent,
+      budgeted,
+      remaining: budgeted - spent,
+    };
+  });
+
   async addCategory(): Promise<void> {
     if (this.addForm.invalid) return;
     await this.categoryService.create(this.addForm.value.name!);
     this.addForm.reset({ name: '' });
+    this.showAddCategory.set(false);
+  }
+
+  cancelAddCategory(): void {
+    this.addForm.reset({ name: '' });
+    this.showAddCategory.set(false);
   }
 
   startEdit(cat: Category): void {

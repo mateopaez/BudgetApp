@@ -41,9 +41,17 @@ import { confirmDialog } from '../../shared/confirm-dialog/confirm-dialog.compon
   ],
   template: `
     <div class="space-y-6">
-      <div class="page-header">
-        <h1 class="page-title">Accounts</h1>
-        <p class="page-subtitle">Balance sheet, account context, and net-worth history</p>
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div class="page-header">
+          <h1 class="page-title">Accounts</h1>
+          <p class="page-subtitle">Balance sheet, account context, and net-worth history</p>
+        </div>
+        @if (!showAccountForm() && !editingId()) {
+          <button mat-flat-button color="primary" type="button" (click)="startAdd()">
+            <mat-icon>add</mat-icon>
+            Add account
+          </button>
+        }
       </div>
 
       <div class="grid gap-3 sm:grid-cols-3">
@@ -138,40 +146,49 @@ import { confirmDialog } from '../../shared/confirm-dialog/confirm-dialog.compon
         </div>
       </div>
 
-      <mat-card class="app-card">
-        <mat-card-content>
-          <form class="grid gap-4 sm:grid-cols-2" [formGroup]="form" (ngSubmit)="save()">
-            <mat-form-field>
-              <mat-label>Name</mat-label>
-              <input matInput formControlName="name" />
-            </mat-form-field>
-            <mat-form-field>
-              <mat-label>Type</mat-label>
-              <mat-select formControlName="type">
-                <mat-option value="checking">Checking</mat-option>
-                <mat-option value="savings">Savings</mat-option>
-                <mat-option value="credit_card">Credit Card</mat-option>
-              </mat-select>
-            </mat-form-field>
-            <mat-form-field>
-              <mat-label>Opening balance</mat-label>
-              <input matInput type="number" step="0.01" formControlName="openingBalance" />
-            </mat-form-field>
-            <mat-form-field>
-              <mat-label>Opening date</mat-label>
-              <input matInput type="date" formControlName="openingDate" />
-            </mat-form-field>
-            <div class="flex flex-wrap gap-2 sm:col-span-2">
-              <button mat-flat-button color="primary" type="submit">
-                {{ editingId() ? 'Update' : 'Add' }} account
-              </button>
-              @if (editingId()) {
+      @if (showAccountForm() || editingId()) {
+        <mat-card class="app-card">
+          <mat-card-header>
+            <mat-card-title class="!text-ink">
+              {{ editingId() ? 'Edit account' : 'Add account' }}
+            </mat-card-title>
+            <mat-card-subtitle>
+              Start with the balance from the date you want BudgetApp to begin tracking this account.
+            </mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            <form class="grid gap-4 sm:grid-cols-2" [formGroup]="form" (ngSubmit)="save()">
+              <mat-form-field>
+                <mat-label>Name</mat-label>
+                <input matInput formControlName="name" autocomplete="off" />
+              </mat-form-field>
+              <mat-form-field>
+                <mat-label>Type</mat-label>
+                <mat-select formControlName="type">
+                  <mat-option value="checking">Checking</mat-option>
+                  <mat-option value="savings">Savings</mat-option>
+                  <mat-option value="credit_card">Credit card</mat-option>
+                </mat-select>
+              </mat-form-field>
+              <mat-form-field>
+                <mat-label>Opening balance</mat-label>
+                <input matInput type="number" step="0.01" formControlName="openingBalance" />
+                <mat-hint>Use a negative balance for credit card debt.</mat-hint>
+              </mat-form-field>
+              <mat-form-field>
+                <mat-label>Opening date</mat-label>
+                <input matInput type="date" formControlName="openingDate" />
+              </mat-form-field>
+              <div class="flex flex-wrap gap-2 sm:col-span-2">
+                <button mat-flat-button color="primary" type="submit">
+                  {{ editingId() ? 'Update account' : 'Add account' }}
+                </button>
                 <button mat-stroked-button type="button" (click)="cancelEdit()">Cancel</button>
-              }
-            </div>
-          </form>
-        </mat-card-content>
-      </mat-card>
+              </div>
+            </form>
+          </mat-card-content>
+        </mat-card>
+      }
 
       <div class="space-y-3">
         @for (account of accounts(); track account.id) {
@@ -206,7 +223,11 @@ import { confirmDialog } from '../../shared/confirm-dialog/confirm-dialog.compon
             </div>
           </div>
         } @empty {
-          <p class="text-sm text-slate-500">No accounts yet. Add your first account above.</p>
+          <div class="panel text-center">
+            <p class="font-semibold text-ink">No accounts yet</p>
+            <p class="mt-1 text-sm text-slate-500">Start with checking. Add savings and credit cards after.</p>
+            <button mat-flat-button color="primary" type="button" class="!mt-4" (click)="startAdd()">Add first account</button>
+          </div>
         }
       </div>
     </div>
@@ -218,6 +239,7 @@ export class AccountsComponent {
   private readonly transactionService = inject(TransactionService);
   private readonly dialog = inject(MatDialog);
 
+  readonly showAccountForm = signal(false);
   readonly accounts = toSignal(this.accountService.watchAccounts(), { initialValue: [] });
   private readonly transactions = toSignal(this.transactionService.watchAllTransactions(), {
     initialValue: [],
@@ -302,6 +324,17 @@ export class AccountsComponent {
     }
   }
 
+  startAdd(): void {
+    this.editingId.set(null);
+    this.showAccountForm.set(true);
+    this.form.reset({
+      name: '',
+      type: 'checking',
+      openingBalance: 0,
+      openingDate: new Date().toISOString().slice(0, 10),
+    });
+  }
+
   async save(): Promise<void> {
     if (this.form.invalid) return;
     const value = this.form.getRawValue();
@@ -321,6 +354,7 @@ export class AccountsComponent {
   }
 
   edit(account: Account): void {
+    this.showAccountForm.set(true);
     this.editingId.set(account.id);
     this.form.patchValue({
       name: account.name,
@@ -331,6 +365,7 @@ export class AccountsComponent {
   }
 
   cancelEdit(): void {
+    this.showAccountForm.set(false);
     this.editingId.set(null);
     this.form.reset({
       name: '',
