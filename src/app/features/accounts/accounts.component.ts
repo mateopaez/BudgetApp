@@ -41,15 +41,15 @@ import { ChartCardComponent } from '../../shared/chart-card/chart-card.component
     <div class="space-y-6">
       <div class="page-header">
         <h1 class="page-title">Accounts</h1>
-        <p class="page-subtitle">Balances, net worth, and comparison</p>
+        <p class="page-subtitle">Balance sheet, account context, and net-worth history</p>
       </div>
 
       <div class="grid gap-3 sm:grid-cols-3">
-        <div class="rounded-xl border border-brand-100 bg-brand-50 px-4 py-3">
-          <p class="text-xs font-medium uppercase tracking-wide text-brand-700">Net worth today</p>
+        <div class="rounded-xl border border-line bg-action-soft px-4 py-3">
+          <p class="text-xs font-medium uppercase tracking-wide text-action">Net worth today</p>
           <p
             class="text-xl font-semibold"
-            [class]="netWorth() < 0 ? 'text-red-600' : 'text-brand-800'"
+            [class]="netWorth() < 0 ? 'text-red-600' : 'text-action'"
           >
             {{ netWorth() | currency }}
           </p>
@@ -82,8 +82,8 @@ import { ChartCardComponent } from '../../shared/chart-card/chart-card.component
       />
 
       <div class="app-card overflow-hidden">
-        <div class="border-b border-brand-100 px-5 py-4">
-          <h3 class="text-sm font-semibold uppercase tracking-wide text-brand-800">
+        <div class="border-b border-line px-5 py-4">
+          <h3 class="text-sm font-semibold uppercase tracking-wide text-action">
             Account comparison
           </h3>
           <p class="mt-1 text-xs text-slate-500">
@@ -93,7 +93,7 @@ import { ChartCardComponent } from '../../shared/chart-card/chart-card.component
         </div>
         <div class="overflow-x-auto">
           <table class="w-full min-w-[480px] text-sm">
-            <thead class="bg-brand-50/60 text-left text-xs uppercase tracking-wide text-slate-500">
+            <thead class="bg-action-soft/60 text-left text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th class="px-4 py-2 font-medium">Account</th>
                 <th class="px-4 py-2 font-medium">Type</th>
@@ -102,14 +102,14 @@ import { ChartCardComponent } from '../../shared/chart-card/chart-card.component
                 <th class="px-4 py-2 font-medium">YTD</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-brand-100">
+            <tbody class="divide-y divide-line">
               @for (row of comparisonRows(); track row.account.id) {
                 <tr>
-                  <td class="px-4 py-2.5 font-medium text-midnight-900">{{ row.account.name }}</td>
+                  <td class="px-4 py-2.5 font-medium text-ink">{{ row.account.name }}</td>
                   <td class="px-4 py-2.5 text-slate-500">{{ row.account.type | titlecase }}</td>
                   <td
                     class="px-4 py-2.5 font-semibold"
-                    [class]="row.balanceToday < 0 ? 'text-red-600' : 'text-brand-700'"
+                    [class]="row.balanceToday < 0 ? 'text-red-600' : 'text-action'"
                   >
                     {{ row.balanceToday | currency }}
                   </td>
@@ -182,14 +182,14 @@ import { ChartCardComponent } from '../../shared/chart-card/chart-card.component
                 >
                   <mat-icon class="!text-base">{{ typeIcon(account.type) }}</mat-icon>
                 </span>
-                <p class="truncate font-semibold text-midnight-900">{{ account.name }}</p>
+                <p class="truncate font-semibold text-ink">{{ account.name }}</p>
               </div>
               <p class="mt-1 text-sm text-slate-500">
                 {{ account.type | titlecase }} · opened {{ account.openingDate | date: 'mediumDate' }}
               </p>
               <p
                 class="text-sm font-medium"
-                [class]="balanceFor(account.id) < 0 ? 'text-red-600' : 'text-brand-700'"
+                [class]="balanceFor(account.id) < 0 ? 'text-red-600' : 'text-action'"
               >
                 Balance: {{ balanceFor(account.id) | currency }}
               </p>
@@ -291,7 +291,7 @@ export class AccountsComponent {
   typeBadgeClass(type: AccountType): string {
     switch (type) {
       case 'checking':
-        return 'bg-brand-100 text-brand-700';
+        return 'bg-action-soft text-action';
       case 'savings':
         return 'bg-emerald-100 text-emerald-700';
       case 'credit_card':

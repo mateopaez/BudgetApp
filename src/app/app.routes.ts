@@ -18,7 +18,11 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/dashboard/dashboard.component').then((m) => m.DashboardComponent),
       },
+      { path: 'home', redirectTo: 'dashboard', pathMatch: 'full' },
       { path: 'overview', redirectTo: 'calendar', pathMatch: 'full' },
+      { path: 'plan', redirectTo: 'calendar', pathMatch: 'full' },
+      { path: 'activity', redirectTo: 'transactions', pathMatch: 'full' },
+      { path: 'budgets', redirectTo: 'categories', pathMatch: 'full' },
       {
         path: 'calendar',
         loadComponent: () =>

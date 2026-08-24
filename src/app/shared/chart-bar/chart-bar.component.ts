@@ -28,10 +28,10 @@ export class ChartBarComponent implements AfterViewInit, OnDestroy {
   readonly labels = input<string[]>([]);
   /** Single series — used when datasets() is empty. */
   readonly data = input<number[]>([]);
-  readonly color = input('#7c3aed');
+  readonly color = input('#0F766E');
   readonly average = input<number | null>(null);
   readonly averageLabel = input('Average');
-  readonly averageColor = input('#1e3a8a');
+  readonly averageColor = input('#66736F');
   /** Multi-series bar groups (e.g. Income / Expenses / Savings). */
   readonly datasets = input<{ label: string; data: number[]; color: string }[]>([]);
 
@@ -70,18 +70,18 @@ export class ChartBarComponent implements AfterViewInit, OnDestroy {
           legend: {
             display: true,
             position: 'bottom',
-            labels: { boxWidth: 12, font: { size: 11 }, color: '#64748b' },
+            labels: { boxWidth: 12, font: { size: 11 }, color: '#66736F' },
           },
         },
         scales: {
           x: {
             grid: { display: false },
-            ticks: { color: '#64748b', font: { size: 11 } },
+            ticks: { color: '#66736F', font: { size: 11 } },
           },
           y: {
             beginAtZero: true,
-            grid: { color: '#ede9fe' },
-            ticks: { color: '#64748b', font: { size: 11 } },
+            grid: { color: '#DED8CE' },
+            ticks: { color: '#66736F', font: { size: 11 } },
           },
         },
       },

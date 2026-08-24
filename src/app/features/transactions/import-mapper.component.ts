@@ -84,8 +84,8 @@ import { ImportService } from '../../core/services/import.service';
       }
 
       <div>
-        <p class="mb-2 text-sm font-medium text-midnight-900">Preview (first 5 rows)</p>
-        <div class="overflow-x-auto rounded-xl border border-brand-100">
+        <p class="mb-2 text-sm font-medium text-ink">Preview (first 5 rows)</p>
+        <div class="overflow-x-auto rounded-xl border border-line">
           <table mat-table [dataSource]="previewLines()" class="w-full min-w-[640px]">
             <ng-container matColumnDef="row">
               <th mat-header-cell *matHeaderCellDef>#</th>

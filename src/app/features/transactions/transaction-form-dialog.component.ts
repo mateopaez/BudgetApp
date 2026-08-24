@@ -41,7 +41,7 @@ export interface TransactionFormResult {
     MatButtonModule,
   ],
   template: `
-    <h2 mat-dialog-title class="!text-midnight-900">
+    <h2 mat-dialog-title class="!text-ink">
       {{ data.mode === 'add' ? 'Add transaction' : 'Edit transaction' }}
     </h2>
     <mat-dialog-content>

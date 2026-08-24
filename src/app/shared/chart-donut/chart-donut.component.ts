@@ -13,16 +13,16 @@ import { Chart, ChartConfiguration, ChartEvent, ActiveElement, registerables } f
 Chart.register(...registerables);
 
 const PALETTE = [
-  '#7c3aed',
-  '#dc2626',
-  '#16a34a',
-  '#2563eb',
-  '#d97706',
-  '#db2777',
-  '#0891b2',
-  '#4f46e5',
-  '#65a30d',
-  '#9333ea',
+  '#0F766E',
+  '#2563EB',
+  '#B45309',
+  '#7C2D12',
+  '#475569',
+  '#15803D',
+  '#0369A1',
+  '#64748B',
+  '#92400E',
+  '#115E59',
 ];
 
 @Component({
@@ -30,8 +30,8 @@ const PALETTE = [
   standalone: true,
   host: { class: 'block' },
   template: `
-    <div class="app-card p-5">
-      <h3 class="mb-4 text-sm font-semibold uppercase tracking-wide text-brand-800">{{ title() }}</h3>
+    <div class="panel p-5">
+      <h3 class="kicker mb-4">{{ title() }}</h3>
       <div class="mx-auto h-64 max-w-sm">
         <canvas #canvas></canvas>
       </div>
@@ -91,7 +91,7 @@ export class ChartDonutComponent implements AfterViewInit, OnDestroy {
         plugins: {
           legend: {
             position: 'bottom',
-            labels: { boxWidth: 12, font: { size: 11 }, color: '#64748b' },
+            labels: { boxWidth: 12, font: { size: 11 }, color: '#66736F' },
           },
         },
         onClick(_event: ChartEvent, elements: ActiveElement[]) {

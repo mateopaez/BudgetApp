@@ -26,9 +26,9 @@ export interface SplitDialogData {
     MatButtonModule,
   ],
   template: `
-    <h2 mat-dialog-title class="!text-midnight-900">Split transaction</h2>
+    <h2 mat-dialog-title class="!text-ink">Split transaction</h2>
     <mat-dialog-content>
-      <p class="mb-4 rounded-lg bg-brand-50 px-3 py-2 text-sm text-slate-600">
+      <p class="mb-4 rounded-lg bg-action-soft px-3 py-2 text-sm text-slate-600">
         Original: {{ data.transaction.merchant }} ({{ data.transaction.amount | currency }})
       </p>
       <form [formGroup]="form" class="space-y-3">

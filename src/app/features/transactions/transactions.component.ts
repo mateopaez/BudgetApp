@@ -65,17 +65,17 @@ type ImportStep = 'upload' | 'map' | 'review';
     <div class="space-y-6">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div class="page-header">
-          <h1 class="page-title">Transactions</h1>
+          <h1 class="page-title">Activity</h1>
           <p class="page-subtitle">
-            {{ transactions().length }} shown · {{ dateRange().label }}
+            Review, categorize, and import money activity · {{ transactions().length }} shown · {{ dateRange().label }}
             @if (inboxCount() > 0) {
               ·
               <button
                 type="button"
-                class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 hover:bg-amber-200"
+                class="rounded-full bg-finance-warningSoft px-2 py-0.5 text-xs font-semibold text-finance-warning hover:bg-finance-warningSoft"
                 (click)="showInbox()"
               >
-                {{ inboxCount() }} in inbox
+                Review {{ inboxCount() }}
               </button>
             }
           </p>
@@ -97,9 +97,9 @@ type ImportStep = 'upload' | 'map' | 'review';
           <mat-card-content class="space-y-4">
             <div class="flex items-start justify-between gap-3">
               <div>
-                <p class="font-medium text-midnight-900">Import CSV</p>
+                <p class="font-medium text-ink">Import CSV</p>
                 <p class="mt-1 text-xs text-slate-500">
-                  Map your bank's columns, preview rows, then import — parsed client-side only
+                  Step through upload, column mapping, duplicate review, and import. CSVs are parsed in your browser.
                 </p>
               </div>
               <button mat-icon-button aria-label="Close import" (click)="closeImport()">
@@ -120,11 +120,11 @@ type ImportStep = 'upload' | 'map' | 'review';
 
             @if (importStep() === 'upload') {
               <label
-                class="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-brand-200 bg-brand-50 p-8 text-center transition-colors hover:border-brand-400 hover:bg-brand-100/50"
+                class="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-brand-200 bg-action-soft p-8 text-center transition-colors hover:border-brand-400 hover:bg-action-soft/50"
                 [class.pointer-events-none]="parsing()"
                 [class.opacity-60]="parsing()"
               >
-                <span class="font-medium text-midnight-900">Tap to upload CSV</span>
+                <span class="font-medium text-ink">Tap to upload CSV</span>
                 <span class="mt-1 text-xs text-slate-500">Raw file is not stored</span>
                 <input
                   #csvInput
@@ -210,6 +210,11 @@ type ImportStep = 'upload' | 'map' | 'review';
 
       <div class="app-card p-4" [formGroup]="filters">
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <mat-form-field class="sm:col-span-2 lg:col-span-4">
+            <mat-label>Search merchant or notes</mat-label>
+            <input matInput formControlName="search" placeholder="e.g. Costco, rent, payroll" />
+          </mat-form-field>
+
           <mat-form-field>
             <mat-label>Account</mat-label>
             <mat-select formControlName="accountId">
@@ -280,7 +285,7 @@ type ImportStep = 'upload' | 'map' | 'review';
           </mat-form-field>
         </div>
 
-        <div class="mt-4 flex flex-wrap items-center gap-4 border-t border-brand-100 pt-4">
+        <div class="mt-4 flex flex-wrap items-center gap-4 border-t border-line pt-4">
           <mat-slide-toggle formControlName="hideCcAndRefunds">
             Hide CC payments &amp; refunds
           </mat-slide-toggle>
@@ -292,8 +297,8 @@ type ImportStep = 'upload' | 'map' | 'review';
           <p class="text-xs font-medium uppercase tracking-wide text-red-700">Expenses</p>
           <p class="text-lg font-semibold text-red-600">{{ summary().expenses | currency }}</p>
         </div>
-        <div class="rounded-xl border border-brand-100 bg-brand-50 px-4 py-3">
-          <p class="text-xs font-medium uppercase tracking-wide text-brand-700">Income</p>
+        <div class="rounded-xl border border-line bg-action-soft px-4 py-3">
+          <p class="text-xs font-medium uppercase tracking-wide text-action">Income</p>
           <p class="text-lg font-semibold text-brand-600">{{ summary().income | currency }}</p>
         </div>
         <div class="rounded-xl border border-slate-200 bg-white px-4 py-3">
@@ -351,7 +356,7 @@ type ImportStep = 'upload' | 'map' | 'review';
                       <mat-icon>close</mat-icon>
                     </button>
                   } @else {
-                    <p class="min-w-0 flex-1 font-medium text-midnight-900">{{ tx.merchant }}</p>
+                    <p class="min-w-0 flex-1 font-medium text-ink">{{ tx.merchant }}</p>
                     <button mat-icon-button class="shrink-0" (click)="startEditMerchant(tx)">
                       <mat-icon class="!text-base">edit</mat-icon>
                     </button>
@@ -408,8 +413,13 @@ type ImportStep = 'upload' | 'map' | 'review';
             </div>
           </div>
         } @empty {
-          <div class="app-card p-8 text-center">
-            <p class="text-sm text-slate-500">No transactions match your filters.</p>
+          <div class="panel p-8 text-center">
+            <p class="font-semibold text-ink">No activity matches these filters.</p>
+            <p class="mt-1 text-sm text-ink-muted">Try clearing filters, widening the date range, or importing recent transactions.</p>
+            <div class="mt-4 flex justify-center gap-2">
+              <button mat-stroked-button (click)="clearFilters()">Clear filters</button>
+              <button mat-flat-button color="primary" (click)="openAdd()">Add transaction</button>
+            </div>
           </div>
         }
       </div>
@@ -481,6 +491,7 @@ export class TransactionsComponent implements OnInit {
   private readonly pendingCategories = signal<Record<string, string | null>>({});
 
   readonly filters = this.fb.group({
+    search: this.fb.nonNullable.control(''),
     accountId: this.fb.nonNullable.control(''),
     period: this.fb.nonNullable.control<DateRangePreset>('all'),
     from: this.fb.control<Date | null>(null),
@@ -504,13 +515,23 @@ export class TransactionsComponent implements OnInit {
 
   readonly transactions = computed(() => {
     const f = this.filterValues();
-    return filterTransactions(this.allTransactions(), this.dateRange(), {
+    let list = filterTransactions(this.allTransactions(), this.dateRange(), {
       accountId: f.accountId ?? '',
       kind: f.kind ?? 'all',
       categoryId: f.categoryId ?? '',
       hideCcAndRefunds: !!f.hideCcAndRefunds,
       sort: f.sort ?? 'date_desc',
     });
+    const query = (f.search ?? '').trim().toLowerCase();
+    if (query) {
+      list = list.filter((tx) =>
+        [tx.merchant, tx.description ?? '', this.accountName(tx.accountId), tx.kind]
+          .join(' ')
+          .toLowerCase()
+          .includes(query)
+      );
+    }
+    return list;
   });
 
   readonly inboxCount = computed(() =>
@@ -536,8 +557,17 @@ export class TransactionsComponent implements OnInit {
     const period = (q.get('period') as DateRangePreset | null) ?? 'all';
     const kind = (q.get('kind') as KindFilter | null) ?? 'all';
 
+    if (q.get('import') === '1') {
+      this.showImport.set(true);
+      this.prefillImportAccount();
+    }
+    if (q.get('action') === 'add') {
+      queueMicrotask(() => this.openAdd());
+    }
+
     this.filters.patchValue(
       {
+        search: q.get('search') ?? '',
         accountId: q.get('accountId') ?? '',
         period: this.isDateRangePreset(period) ? period : 'all',
         from: parseDateParam(q.get('from')),
@@ -565,6 +595,7 @@ export class TransactionsComponent implements OnInit {
       void this.router.navigate([], {
         relativeTo: this.route,
         queryParams: {
+          search: v.search || null,
           accountId: v.accountId || null,
           period: v.period === 'all' ? null : v.period,
           from: v.period === 'custom' && v.from ? formatDateParam(v.from) : null,
@@ -606,6 +637,20 @@ export class TransactionsComponent implements OnInit {
     this.filters.patchValue({
       categoryId: 'uncategorized',
       kind: 'expense',
+    });
+  }
+
+  clearFilters(): void {
+    this.filters.patchValue({
+      search: '',
+      accountId: '',
+      period: 'all',
+      from: null,
+      to: null,
+      kind: 'all',
+      categoryId: '',
+      hideCcAndRefunds: false,
+      sort: 'date_desc',
     });
   }
 

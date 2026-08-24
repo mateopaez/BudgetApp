@@ -33,13 +33,13 @@ import { resolveDateRange } from '../../core/utils/date.util';
   template: `
     <div class="space-y-6">
       <div class="page-header">
-        <h1 class="page-title">Categories</h1>
-        <p class="page-subtitle">Manage categories and set spending budgets</p>
+        <h1 class="page-title">Budgets</h1>
+        <p class="page-subtitle">Set monthly guardrails and keep category spending easy to understand</p>
       </div>
 
       <mat-card class="app-card">
         <mat-card-header>
-          <mat-card-title class="!text-midnight-900">Categories</mat-card-title>
+          <mat-card-title class="!text-ink">Budgets & categories</mat-card-title>
           <mat-card-subtitle>
             Rename or remove categories. Set a budget to track monthly or weekly caps. System
             categories are read-only.
@@ -54,7 +54,7 @@ import { resolveDateRange } from '../../core/utils/date.util';
             <button mat-flat-button color="primary" type="submit" class="!mt-1 shrink-0">Add</button>
           </form>
 
-          <ul class="m-0 list-none divide-y divide-brand-100 overflow-hidden rounded-xl border border-brand-100 p-0">
+          <ul class="m-0 list-none divide-y divide-line overflow-hidden rounded-xl border border-line p-0">
             @for (row of categoryRows(); track row.cat.id) {
               <li class="space-y-3 px-4 py-3">
                 <div class="flex items-center gap-2">
@@ -76,9 +76,9 @@ import { resolveDateRange } from '../../core/utils/date.util';
                       <mat-icon>close</mat-icon>
                     </button>
                   } @else {
-                    <span class="min-w-0 flex-1 truncate font-medium text-midnight-900">{{ row.cat.name }}</span>
+                    <span class="min-w-0 flex-1 truncate font-medium text-ink">{{ row.cat.name }}</span>
                     @if (row.cat.isSystem) {
-                      <span class="shrink-0 rounded-full bg-brand-100 px-2.5 py-0.5 text-xs font-medium text-brand-700">
+                      <span class="shrink-0 rounded-full bg-action-soft px-2.5 py-0.5 text-xs font-medium text-action">
                         System
                       </span>
                     } @else {

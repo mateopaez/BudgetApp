@@ -70,7 +70,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
   template: `
     <div class="calendar-page space-y-6">
       <div class="page-header">
-        <h1 class="page-title">Calendar</h1>
+        <h1 class="page-title">Plan</h1>
         <p class="page-subtitle">
           Bills, paychecks, and transactions · net worth
           {{ netWorth() | currency }}
@@ -83,7 +83,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
             <div
               class="inline-flex overflow-hidden rounded-lg border border-brand-200 bg-white shadow-sm"
               role="group"
-              aria-label="Calendar view"
+              aria-label="Plan view"
             >
               <button
                 type="button"
@@ -116,7 +116,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
               <mat-icon>chevron_right</mat-icon>
             </button>
           </div>
-          <p class="text-sm font-semibold text-midnight-900">{{ periodLabel() }}</p>
+          <p class="text-sm font-semibold text-ink">{{ periodLabel() }}</p>
         </div>
 
         @if (viewMode() === 'month') {
@@ -136,9 +136,9 @@ const WEEK_DAY_VISIBLE_CAP = 5;
               <p class="text-xs font-medium uppercase tracking-wide text-red-700">Spent this week</p>
               <p class="text-xl font-semibold text-red-600">{{ weekTotals().spent | currency }}</p>
             </div>
-            <div class="rounded-xl border border-brand-100 bg-brand-50 px-4 py-3">
-              <p class="text-xs font-medium uppercase tracking-wide text-brand-700">Weekly budget</p>
-              <p class="text-xl font-semibold text-brand-700">{{ weeklyBudgetTotal() | currency }}</p>
+            <div class="rounded-xl border border-line bg-action-soft px-4 py-3">
+              <p class="text-xs font-medium uppercase tracking-wide text-action">Weekly budget</p>
+              <p class="text-xl font-semibold text-action">{{ weeklyBudgetTotal() | currency }}</p>
               <p class="mt-0.5 text-xs text-slate-500">Monthly budgets ÷ {{ weeksPerMonth }}</p>
             </div>
             <div
@@ -167,7 +167,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
           <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
             @for (day of weekCells(); track dayKey(day)) {
               <div
-                class="flex max-h-80 min-h-[12rem] flex-col rounded-xl border border-brand-100 bg-white p-3 shadow-sm transition-shadow"
+                class="flex max-h-80 min-h-[12rem] flex-col rounded-xl border border-line bg-white p-3 shadow-sm transition-shadow"
                 [class]="weekDayColumnClass(day)"
               >
                 <button
@@ -179,7 +179,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
                     {{ day | date: 'EEE' }}
                   </p>
                   <div class="flex items-baseline justify-between gap-2">
-                    <p class="text-lg font-semibold text-midnight-900">{{ day | date: 'd' }}</p>
+                    <p class="text-lg font-semibold text-ink">{{ day | date: 'd' }}</p>
                     <p
                       class="text-xs font-semibold"
                       [class.text-emerald-600]="dayNetFor(day) > 0"
@@ -208,7 +208,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
                 @if (weekOverflowCount(day) > 0) {
                   <button
                     type="button"
-                    class="mt-2 w-full rounded-md py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                    class="mt-2 w-full rounded-md py-1.5 text-xs font-medium text-action hover:bg-action-soft"
                     (click)="selectDay(day)"
                   >
                     + {{ weekOverflowCount(day) }} more
@@ -223,7 +223,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
       <div class="grid gap-4 lg:grid-cols-2">
         <mat-card class="app-card">
           <mat-card-header>
-            <mat-card-title class="!text-midnight-900">
+            <mat-card-title class="!text-ink">
               {{ selectedDate() | date: 'fullDate' }}
             </mat-card-title>
             <mat-card-subtitle>
@@ -235,12 +235,12 @@ const WEEK_DAY_VISIBLE_CAP = 5;
           </mat-card-header>
           <mat-card-content>
             <ul
-              class="m-0 list-none divide-y divide-brand-100 overflow-hidden rounded-xl border border-brand-100 p-0"
+              class="m-0 list-none divide-y divide-line overflow-hidden rounded-xl border border-line p-0"
             >
               @for (occ of selectedDayOccurrences(); track occ.id) {
                 <li class="flex items-center justify-between gap-3 px-4 py-3">
                   <div class="min-w-0">
-                    <p class="truncate font-medium text-midnight-900">{{ occ.title }}</p>
+                    <p class="truncate font-medium text-ink">{{ occ.title }}</p>
                     <p class="text-xs text-slate-500">
                       {{ occ.kind }} ·
                       {{ occ.source === 'scheduled' ? 'Scheduled' : 'Posted' }}
@@ -280,7 +280,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
                 @for (occ of upcoming(); track occ.id) {
                   <li class="flex items-start justify-between gap-2 text-sm">
                     <div class="min-w-0">
-                      <p class="truncate font-medium text-midnight-900">{{ occ.title }}</p>
+                      <p class="truncate font-medium text-ink">{{ occ.title }}</p>
                       <p class="text-xs text-slate-500">{{ occ.date | date: 'EEE, MMM d' }}</p>
                     </div>
                     <span
@@ -301,7 +301,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
 
         <mat-card class="app-card">
           <mat-card-header>
-            <mat-card-title class="!text-base !text-midnight-900">
+            <mat-card-title class="!text-base !text-ink">
               {{ editingId() ? 'Edit scheduled item' : 'Add bill / paycheck' }}
             </mat-card-title>
             <mat-card-subtitle>
@@ -412,16 +412,16 @@ const WEEK_DAY_VISIBLE_CAP = 5;
 
       <mat-card class="app-card">
         <mat-card-header>
-          <mat-card-title class="!text-base !text-midnight-900">All scheduled</mat-card-title>
+          <mat-card-title class="!text-base !text-ink">All scheduled</mat-card-title>
         </mat-card-header>
         <mat-card-content>
           <ul
-            class="m-0 list-none divide-y divide-brand-100 overflow-hidden rounded-xl border border-brand-100 p-0"
+            class="m-0 list-none divide-y divide-line overflow-hidden rounded-xl border border-line p-0"
           >
             @for (item of scheduled(); track item.id) {
               <li class="flex items-center gap-2 px-3 py-2.5">
                 <div class="min-w-0 flex-1">
-                  <p class="truncate text-sm font-medium text-midnight-900">
+                  <p class="truncate text-sm font-medium text-ink">
                     {{ item.title }}
                     @if (!item.isActive) {
                       <span class="ml-1 text-xs text-slate-400">(paused)</span>
@@ -694,7 +694,7 @@ export class CalendarComponent {
       parts.push('ring-2 ring-brand-500 border-brand-400');
     }
     if (this.isToday(day)) {
-      parts.push('bg-brand-50');
+      parts.push('bg-action-soft');
     }
     return parts.join(' ');
   }
