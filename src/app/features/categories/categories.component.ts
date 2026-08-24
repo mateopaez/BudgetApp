@@ -17,6 +17,7 @@ import { TransactionService } from '../../core/services/transaction.service';
 import { buildCategorySpendRows } from '../../core/utils/budget.util';
 import { resolveDateRange } from '../../core/utils/date.util';
 import { confirmDialog } from '../../shared/confirm-dialog/confirm-dialog.component';
+import { ModalSheetComponent } from '../../shared/modal-sheet/modal-sheet.component';
 
 interface CategoryBudgetRow {
   cat: Category;
@@ -40,7 +41,9 @@ interface CategoryBudgetRow {
     MatButtonModule,
     MatIconModule,
     MatProgressBarModule,
+    ModalSheetComponent,
   ],
+  providers: [CurrencyPipe],
   template: `
     <div class="space-y-6">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -48,8 +51,8 @@ interface CategoryBudgetRow {
           <h1 class="page-title">Budgets</h1>
           <p class="page-subtitle">Set spending guardrails and see what needs attention this month</p>
         </div>
-        @if (!showAddCategory()) {
-          <button mat-flat-button color="primary" type="button" (click)="showAddCategory.set(true)">
+        @if (!categorySheetOpen()) {
+          <button mat-flat-button color="primary" type="button" (click)="startAddCategory()">
             <mat-icon>add</mat-icon>
             Add category
           </button>
@@ -84,151 +87,84 @@ interface CategoryBudgetRow {
         <mat-card-header>
           <mat-card-title class="!text-ink">Budgets & categories</mat-card-title>
           <mat-card-subtitle>
-            Rename or remove categories. Set a budget to track monthly or weekly caps. System
-            categories are read-only.
+            Tap edit to rename a category or adjust its budget. System categories are read-only.
           </mat-card-subtitle>
         </mat-card-header>
         <mat-card-content class="space-y-4">
-          @if (showAddCategory()) {
-            <form class="rounded-2xl border border-line bg-action-soft/40 p-4" [formGroup]="addForm" (ngSubmit)="addCategory()">
-              <div class="mb-3">
-                <p class="font-semibold text-ink">Add category</p>
-                <p class="text-sm text-slate-500">Use categories for spending groups you want to review or budget.</p>
-              </div>
-              <div class="flex flex-col gap-3 sm:flex-row sm:items-start">
-                <mat-form-field class="flex-1">
-                  <mat-label>Category name</mat-label>
-                  <input matInput formControlName="name" autocomplete="off" />
-                </mat-form-field>
-                <div class="flex gap-2">
-                  <button mat-flat-button color="primary" type="submit" class="shrink-0">Add</button>
-                  <button mat-stroked-button type="button" (click)="cancelAddCategory()">Cancel</button>
-                </div>
-              </div>
-            </form>
-          }
-
           <ul class="m-0 list-none divide-y divide-line overflow-hidden rounded-xl border border-line p-0">
             @for (row of categoryRows(); track row.cat.id) {
               <li class="space-y-3 px-4 py-3">
                 <div class="flex items-center gap-2">
-                  @if (editingId() === row.cat.id) {
-                    <mat-form-field class="flex-1">
-                      <mat-label>Category name</mat-label>
-                      <input
-                        matInput
-                        [value]="editName()"
-                        (input)="editName.set($any($event.target).value)"
-                        (keydown.enter)="saveEdit(row.cat.id)"
-                        (keydown.escape)="cancelEdit()"
-                      />
-                    </mat-form-field>
-                    <button mat-icon-button color="primary" (click)="saveEdit(row.cat.id)" [attr.aria-label]="'Save category name for ' + row.cat.name">
-                      <mat-icon>check</mat-icon>
-                    </button>
-                    <button mat-icon-button (click)="cancelEdit()" [attr.aria-label]="'Cancel editing ' + row.cat.name">
-                      <mat-icon>close</mat-icon>
-                    </button>
+                  <span class="min-w-0 flex-1 truncate font-medium text-ink">{{ row.cat.name }}</span>
+                  @if (row.cat.isSystem) {
+                    <span class="shrink-0 rounded-full bg-action-soft px-2.5 py-0.5 text-xs font-medium text-action">
+                      System
+                    </span>
                   } @else {
-                    <span class="min-w-0 flex-1 truncate font-medium text-ink">{{ row.cat.name }}</span>
-                    @if (row.cat.isSystem) {
-                      <span class="shrink-0 rounded-full bg-action-soft px-2.5 py-0.5 text-xs font-medium text-action">
-                        System
-                      </span>
-                    } @else {
-                      <button mat-icon-button (click)="startEdit(row.cat)" [attr.aria-label]="'Edit category ' + row.cat.name">
-                        <mat-icon>edit</mat-icon>
-                      </button>
-                      <button mat-icon-button color="warn" (click)="remove(row.cat)" [attr.aria-label]="'Delete category ' + row.cat.name">
-                        <mat-icon>delete</mat-icon>
-                      </button>
-                    }
+                    <button mat-icon-button (click)="startEditCategory(row)" [attr.aria-label]="'Edit category ' + row.cat.name">
+                      <mat-icon>edit</mat-icon>
+                    </button>
+                    <button mat-icon-button color="warn" (click)="remove(row.cat)" [attr.aria-label]="'Delete category ' + row.cat.name">
+                      <mat-icon>delete</mat-icon>
+                    </button>
                   }
                 </div>
 
                 @if (!row.cat.isSystem) {
-                  @if (budgetEditingId() === row.cat.id) {
-                    <form
-                      class="grid gap-3 sm:grid-cols-[1fr_auto_auto_auto] sm:items-start"
-                      [formGroup]="budgetForm"
-                      (ngSubmit)="saveBudget(row.cat.id)"
-                    >
-                      <mat-form-field>
-                        <mat-label>Budget amount</mat-label>
-                        <input matInput type="number" step="0.01" min="0" formControlName="amount" />
-                      </mat-form-field>
-                      <mat-form-field>
-                        <mat-label>Period</mat-label>
-                        <mat-select formControlName="period">
-                          <mat-option value="monthly">Monthly</mat-option>
-                          <mat-option value="weekly">Weekly</mat-option>
-                        </mat-select>
-                      </mat-form-field>
-                      <button mat-flat-button color="primary" type="submit" class="!mt-1">Save</button>
-                      <button mat-button type="button" class="!mt-1" (click)="cancelBudgetEdit()">Cancel</button>
-                    </form>
-                  } @else {
-                    <div class="space-y-3">
-                      <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div class="min-w-0 space-y-1">
-                          <div class="flex flex-wrap items-center gap-2">
-                            <span
-                              class="rounded-full px-2.5 py-0.5 text-xs font-semibold"
-                              [class]="budgetStatusClass(row)"
-                            >
-                              {{ budgetStatusLabel(row) }}
-                            </span>
-                            @if (row.budget?.period === 'weekly') {
-                              <span class="text-xs text-ink-muted">{{ row.budget?.amount | currency }}/week</span>
-                            }
-                          </div>
-
-                          @if (row.monthlyBudgetAmount != null) {
-                            <p class="text-sm text-slate-600">
-                              <span class="font-medium text-ink">{{ row.spent | currency }}</span>
-                              spent this month of
-                              <span class="font-medium text-ink">{{ row.monthlyBudgetAmount | currency }}</span>
-                              target
-                            </p>
-                            @if (row.remaining != null) {
-                              <p
-                                class="text-sm font-medium"
-                                [class]="row.remaining < 0 ? 'text-red-600' : 'text-emerald-700'"
-                              >
-                                @if (row.remaining < 0) {
-                                  {{ abs(row.remaining) | currency }} over target
-                                } @else {
-                                  {{ row.remaining | currency }} left this month
-                                }
-                              </p>
-                            }
-                          } @else {
-                            <p class="text-sm text-slate-500">
-                              {{ row.spent | currency }} spent this month · no budget set
-                            </p>
-                          }
-                        </div>
-
-                        <button mat-stroked-button type="button" (click)="startBudgetEdit(row.cat, row.budget)">
-                          {{ row.budget ? 'Edit budget' : 'Set budget' }}
-                        </button>
+                  <div class="space-y-3">
+                    <div class="min-w-0 space-y-1">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <span
+                          class="rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                          [class]="budgetStatusClass(row)"
+                        >
+                          {{ budgetStatusLabel(row) }}
+                        </span>
+                        @if (row.budget?.period === 'weekly') {
+                          <span class="text-xs text-ink-muted">{{ row.budget?.amount | currency }}/week</span>
+                        }
                       </div>
 
-                      @if (row.monthlyBudgetAmount != null && row.percentOfBudget != null) {
-                        <div class="space-y-1">
-                          <mat-progress-bar
-                            mode="determinate"
-                            [value]="Math.min(row.percentOfBudget, 100)"
-                            [color]="row.percentOfBudget > 100 ? 'warn' : 'primary'"
-                            [attr.aria-label]="budgetProgressLabel(row)"
-                          />
-                          <p class="text-xs text-ink-muted">
-                            {{ Math.min(row.percentOfBudget, 100) }}% of target used
+                      @if (row.monthlyBudgetAmount != null) {
+                        <p class="text-sm text-slate-600">
+                          <span class="font-medium text-ink">{{ row.spent | currency }}</span>
+                          spent this month of
+                          <span class="font-medium text-ink">{{ row.monthlyBudgetAmount | currency }}</span>
+                          target
+                        </p>
+                        @if (row.remaining != null) {
+                          <p
+                            class="text-sm font-medium"
+                            [class]="row.remaining < 0 ? 'text-red-600' : 'text-emerald-700'"
+                          >
+                            @if (row.remaining < 0) {
+                              {{ abs(row.remaining) | currency }} over target
+                            } @else {
+                              {{ row.remaining | currency }} left this month
+                            }
                           </p>
-                        </div>
+                        }
+                      } @else {
+                        <p class="text-sm text-slate-500">
+                          {{ row.spent | currency }} spent this month · no budget set
+                        </p>
                       }
                     </div>
-                  }
+
+                    @if (row.monthlyBudgetAmount != null && row.percentOfBudget != null) {
+                      <div class="space-y-1">
+                        <mat-progress-bar
+                          mode="determinate"
+                          [value]="Math.min(row.percentOfBudget, 100)"
+                          [color]="row.percentOfBudget > 100 ? 'warn' : 'primary'"
+                          [attr.aria-label]="budgetProgressLabel(row)"
+                        />
+                        <p class="text-xs text-ink-muted">
+                          {{ Math.min(row.percentOfBudget, 100) }}% of target used
+                        </p>
+                      </div>
+                    }
+                  </div>
                 }
               </li>
             }
@@ -236,6 +172,55 @@ interface CategoryBudgetRow {
         </mat-card-content>
       </mat-card>
     </div>
+
+    @if (categorySheetOpen()) {
+      <app-modal-sheet
+        [title]="editingCategoryId() ? 'Edit category' : 'Add category'"
+        [subtitle]="categorySheetSubtitle()"
+        [ariaLabel]="editingCategoryId() ? 'Edit category' : 'Add category'"
+        (closed)="cancelCategorySheet()"
+      >
+        <form id="category-form" class="space-y-5" [formGroup]="categoryForm" (ngSubmit)="saveCategory()">
+          <section class="space-y-3">
+            <p class="kicker">Category</p>
+            <mat-form-field appearance="outline" class="w-full">
+              <mat-label>Category name</mat-label>
+              <input matInput formControlName="name" autocomplete="off" />
+            </mat-form-field>
+          </section>
+
+          <section class="rounded-2xl border border-line bg-action-soft/40 p-4">
+            <p class="kicker">Budget</p>
+            <div class="mt-3 grid gap-3 sm:grid-cols-2">
+              <mat-form-field appearance="outline">
+                <mat-label>Budget amount</mat-label>
+                <input matInput type="number" step="0.01" min="0" formControlName="amount" />
+                <mat-hint>Leave at 0 to skip budgeting for now.</mat-hint>
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Period</mat-label>
+                <mat-select formControlName="period">
+                  <mat-option value="monthly">Monthly</mat-option>
+                  <mat-option value="weekly">Weekly</mat-option>
+                </mat-select>
+              </mat-form-field>
+            </div>
+          </section>
+        </form>
+
+        <button modalActions mat-button type="button" (click)="cancelCategorySheet()">Cancel</button>
+        <button
+          modalActions
+          mat-flat-button
+          color="primary"
+          type="submit"
+          form="category-form"
+          [disabled]="categoryForm.invalid"
+        >
+          {{ editingCategoryId() ? 'Save changes' : 'Add category' }}
+        </button>
+      </app-modal-sheet>
+    }
   `,
 })
 export class CategoriesComponent {
@@ -244,8 +229,14 @@ export class CategoriesComponent {
   private readonly budgetService = inject(BudgetService);
   private readonly transactionService = inject(TransactionService);
   private readonly dialog = inject(MatDialog);
+  private readonly currency = inject(CurrencyPipe);
 
-  readonly showAddCategory = signal(false);
+  readonly categorySheetOpen = signal(false);
+  readonly editingCategoryId = signal<string | null>(null);
+
+  readonly editingCategory = computed(() =>
+    this.categoryRows().find((row) => row.cat.id === this.editingCategoryId()) ?? null
+  );
 
   readonly Math = Math;
   readonly abs = Math.abs;
@@ -256,12 +247,8 @@ export class CategoriesComponent {
     initialValue: [],
   });
 
-  readonly editingId = signal<string | null>(null);
-  readonly editName = signal('');
-  readonly budgetEditingId = signal<string | null>(null);
-
-  readonly addForm = this.fb.nonNullable.group({ name: ['', Validators.required] });
-  readonly budgetForm = this.fb.nonNullable.group({
+  readonly categoryForm = this.fb.nonNullable.group({
+    name: ['', Validators.required],
     amount: [0, [Validators.required, Validators.min(0)]],
     period: ['monthly' as BudgetPeriod, Validators.required],
   });
@@ -346,33 +333,60 @@ export class CategoriesComponent {
     return 2;
   }
 
-  async addCategory(): Promise<void> {
-    if (this.addForm.invalid) return;
-    await this.categoryService.create(this.addForm.value.name!);
-    this.addForm.reset({ name: '' });
-    this.showAddCategory.set(false);
+  categorySheetSubtitle(): string {
+    const row = this.editingCategory();
+    if (!row) {
+      return 'Name the category and optionally set a monthly or weekly budget.';
+    }
+    const spent = this.currency.transform(row.spent) ?? String(row.spent);
+    return `${spent} spent this month`;
   }
 
-  cancelAddCategory(): void {
-    this.addForm.reset({ name: '' });
-    this.showAddCategory.set(false);
+  startAddCategory(): void {
+    this.editingCategoryId.set(null);
+    this.resetCategoryForm();
+    this.categorySheetOpen.set(true);
   }
 
-  startEdit(cat: Category): void {
-    this.editingId.set(cat.id);
-    this.editName.set(cat.name);
+  startEditCategory(row: CategoryBudgetRow): void {
+    this.editingCategoryId.set(row.cat.id);
+    this.categoryForm.patchValue({
+      name: row.cat.name,
+      amount: row.budget?.amount ?? 0,
+      period: row.budget?.period ?? 'monthly',
+    });
+    this.categorySheetOpen.set(true);
   }
 
-  cancelEdit(): void {
-    this.editingId.set(null);
-    this.editName.set('');
+  cancelCategorySheet(): void {
+    this.categorySheetOpen.set(false);
+    this.editingCategoryId.set(null);
+    this.resetCategoryForm();
   }
 
-  async saveEdit(id: string): Promise<void> {
-    const name = this.editName().trim();
-    if (!name) return;
-    await this.categoryService.update(id, name);
-    this.cancelEdit();
+  async saveCategory(): Promise<void> {
+    if (this.categoryForm.invalid) return;
+    const { name, amount, period } = this.categoryForm.getRawValue();
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+
+    const categoryId = this.editingCategoryId();
+    if (categoryId) {
+      const row = this.editingCategory();
+      if (row && trimmedName !== row.cat.name) {
+        await this.categoryService.update(categoryId, trimmedName);
+      }
+      await this.budgetService.upsert(categoryId, amount, period);
+    } else {
+      const newId = await this.categoryService.create(trimmedName);
+      await this.budgetService.upsert(newId, amount, period);
+    }
+
+    this.cancelCategorySheet();
+  }
+
+  private resetCategoryForm(): void {
+    this.categoryForm.reset({ name: '', amount: 0, period: 'monthly' });
   }
 
   async remove(cat: Category): Promise<void> {
@@ -386,24 +400,5 @@ export class CategoriesComponent {
     if (!confirmed) return;
     await this.budgetService.remove(cat.id);
     await this.categoryService.remove(cat.id);
-  }
-
-  startBudgetEdit(cat: Category, budget: CategoryBudget | null): void {
-    this.budgetEditingId.set(cat.id);
-    this.budgetForm.patchValue({
-      amount: budget?.amount ?? 0,
-      period: budget?.period ?? 'monthly',
-    });
-  }
-
-  cancelBudgetEdit(): void {
-    this.budgetEditingId.set(null);
-  }
-
-  async saveBudget(categoryId: string): Promise<void> {
-    if (this.budgetForm.invalid) return;
-    const { amount, period } = this.budgetForm.getRawValue();
-    await this.budgetService.upsert(categoryId, amount, period);
-    this.cancelBudgetEdit();
   }
 }

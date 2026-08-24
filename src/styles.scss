@@ -50,6 +50,36 @@ body {
   color: var(--color-ink);
 }
 
+body.modal-sheet-open {
+  overflow: hidden;
+}
+
+.modal-sheet-panel {
+  border-radius: 1.5rem 1.5rem 0 0;
+}
+
+@media (min-width: 640px) {
+  .modal-sheet-panel {
+    border-radius: 1.5rem;
+  }
+}
+
+.modal-sheet-body .mat-mdc-form-field {
+  margin-bottom: 0;
+}
+
+.modal-sheet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.modal-sheet-actions:empty {
+  display: none;
+}
+
 * {
   box-sizing: border-box;
 }

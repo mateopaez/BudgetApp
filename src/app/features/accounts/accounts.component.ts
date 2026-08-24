@@ -22,6 +22,7 @@ import {
 import { startOfDay } from '../../core/utils/date.util';
 import { ChartCardComponent } from '../../shared/chart-card/chart-card.component';
 import { confirmDialog } from '../../shared/confirm-dialog/confirm-dialog.component';
+import { ModalSheetComponent } from '../../shared/modal-sheet/modal-sheet.component';
 
 @Component({
   selector: 'app-accounts',
@@ -38,6 +39,7 @@ import { confirmDialog } from '../../shared/confirm-dialog/confirm-dialog.compon
     MatButtonModule,
     MatIconModule,
     ChartCardComponent,
+    ModalSheetComponent,
   ],
   template: `
     <div class="space-y-6">
@@ -46,7 +48,7 @@ import { confirmDialog } from '../../shared/confirm-dialog/confirm-dialog.compon
           <h1 class="page-title">Accounts</h1>
           <p class="page-subtitle">Balance sheet, account context, and net-worth history</p>
         </div>
-        @if (!showAccountForm() && !editingId()) {
+        @if (!accountSheetOpen()) {
           <button mat-flat-button color="primary" type="button" (click)="startAdd()">
             <mat-icon>add</mat-icon>
             Add account
@@ -177,68 +179,6 @@ import { confirmDialog } from '../../shared/confirm-dialog/confirm-dialog.compon
         </div>
       </div>
 
-      @if (showAccountForm() || editingId()) {
-        <div
-          class="fixed inset-0 z-50 flex items-end justify-center bg-ink/35 p-0 backdrop-blur-[2px] sm:items-center sm:p-6"
-          role="dialog"
-          aria-modal="true"
-          [attr.aria-label]="editingId() ? 'Edit account' : 'Add account'"
-          (click)="cancelEdit()"
-        >
-          <mat-card
-            class="app-card max-h-[92vh] w-full overflow-hidden !rounded-b-none !shadow-floating sm:max-w-xl sm:!rounded-3xl"
-            (click)="$event.stopPropagation()"
-          >
-            <mat-card-header class="border-b border-line !px-5 !py-4">
-              <div class="flex w-full items-start justify-between gap-4">
-                <div>
-                  <mat-card-title class="!text-ink">
-                    {{ editingId() ? 'Edit account' : 'Add account' }}
-                  </mat-card-title>
-                  <mat-card-subtitle>
-                    Start with the balance from the date you want BudgetApp to begin tracking this account.
-                  </mat-card-subtitle>
-                </div>
-                <button mat-icon-button type="button" (click)="cancelEdit()" aria-label="Close account form">
-                  <mat-icon>close</mat-icon>
-                </button>
-              </div>
-            </mat-card-header>
-            <mat-card-content class="max-h-[calc(92vh-6rem)] overflow-y-auto !p-5">
-              <form class="grid gap-4 sm:grid-cols-2" [formGroup]="form" (ngSubmit)="save()">
-                <mat-form-field>
-                  <mat-label>Name</mat-label>
-                  <input matInput formControlName="name" autocomplete="off" />
-                </mat-form-field>
-                <mat-form-field>
-                  <mat-label>Type</mat-label>
-                  <mat-select formControlName="type">
-                    <mat-option value="checking">Checking</mat-option>
-                    <mat-option value="savings">Savings</mat-option>
-                    <mat-option value="credit_card">Credit card</mat-option>
-                  </mat-select>
-                </mat-form-field>
-                <mat-form-field>
-                  <mat-label>Opening balance</mat-label>
-                  <input matInput type="number" step="0.01" formControlName="openingBalance" />
-                  <mat-hint>Use a negative balance for credit card debt.</mat-hint>
-                </mat-form-field>
-                <mat-form-field>
-                  <mat-label>Opening date</mat-label>
-                  <input matInput type="date" formControlName="openingDate" />
-                </mat-form-field>
-                <div class="sticky bottom-0 -mx-5 -mb-5 flex flex-wrap justify-end gap-2 border-t border-line bg-surface px-5 py-4 sm:col-span-2">
-                  <button mat-stroked-button type="button" (click)="cancelEdit()">Cancel</button>
-                  <button mat-flat-button color="primary" type="submit" [disabled]="form.invalid">
-                    {{ editingId() ? 'Update account' : 'Add account' }}
-                  </button>
-                </div>
-              </form>
-            </mat-card-content>
-          </mat-card>
-        </div>
-      }
-
       <div class="space-y-3">
         @for (account of accounts(); track account.id) {
           <div class="app-list-row flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -280,6 +220,55 @@ import { confirmDialog } from '../../shared/confirm-dialog/confirm-dialog.compon
         }
       </div>
     </div>
+
+    @if (accountSheetOpen()) {
+      <app-modal-sheet
+        [title]="editingId() ? 'Edit account' : 'Add account'"
+        subtitle="Start with the balance from the date you want BudgetApp to begin tracking this account."
+        [ariaLabel]="editingId() ? 'Edit account' : 'Add account'"
+        (closed)="cancelEdit()"
+      >
+        <form id="account-form" class="space-y-5" [formGroup]="form" (ngSubmit)="save()">
+          <section class="space-y-3">
+            <p class="kicker">Account details</p>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <mat-form-field appearance="outline">
+                <mat-label>Name</mat-label>
+                <input matInput formControlName="name" autocomplete="off" />
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Type</mat-label>
+                <mat-select formControlName="type">
+                  <mat-option value="checking">Checking</mat-option>
+                  <mat-option value="savings">Savings</mat-option>
+                  <mat-option value="credit_card">Credit card</mat-option>
+                </mat-select>
+              </mat-form-field>
+            </div>
+          </section>
+
+          <section class="rounded-2xl border border-line bg-action-soft/40 p-4">
+            <p class="kicker">Opening balance</p>
+            <div class="mt-3 grid gap-3 sm:grid-cols-2">
+              <mat-form-field appearance="outline">
+                <mat-label>Opening balance</mat-label>
+                <input matInput type="number" step="0.01" formControlName="openingBalance" />
+                <mat-hint>Use a negative balance for credit card debt.</mat-hint>
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Opening date</mat-label>
+                <input matInput type="date" formControlName="openingDate" />
+              </mat-form-field>
+            </div>
+          </section>
+        </form>
+
+        <button modalActions mat-button type="button" (click)="cancelEdit()">Cancel</button>
+        <button modalActions mat-flat-button color="primary" type="submit" form="account-form" [disabled]="form.invalid">
+          {{ editingId() ? 'Update account' : 'Add account' }}
+        </button>
+      </app-modal-sheet>
+    }
   `,
 })
 export class AccountsComponent {
@@ -289,6 +278,7 @@ export class AccountsComponent {
   private readonly dialog = inject(MatDialog);
 
   readonly showAccountForm = signal(false);
+  readonly accountSheetOpen = computed(() => this.showAccountForm() || !!this.editingId());
   readonly accounts = toSignal(this.accountService.watchAccounts(), { initialValue: [] });
   private readonly transactions = toSignal(this.transactionService.watchAllTransactions(), {
     initialValue: [],

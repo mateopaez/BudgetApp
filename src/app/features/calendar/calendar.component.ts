@@ -39,6 +39,7 @@ import {
 } from '../../core/utils/calendar.util';
 import { endOfDay, formatDateParam, resolveCurrentWeek, startOfDay } from '../../core/utils/date.util';
 import { confirmDialog } from '../../shared/confirm-dialog/confirm-dialog.component';
+import { ModalSheetComponent } from '../../shared/modal-sheet/modal-sheet.component';
 
 interface DaySummaryData {
   type: 'day-summary';
@@ -68,6 +69,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
     MatIconModule,
     MatCheckboxModule,
     MatSnackBarModule,
+    ModalSheetComponent,
   ],
   template: `
     <div class="calendar-page space-y-6">
@@ -79,7 +81,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
             {{ netWorth() | currency }}
           </p>
         </div>
-        <button mat-flat-button color="primary" type="button" (click)="startNewItem()">
+        <button mat-flat-button color="primary" type="button" (click)="startNewItem()" [disabled]="scheduleSheetOpen()">
           <mat-icon>add</mat-icon>
           Add bill or paycheck
         </button>
@@ -384,142 +386,13 @@ const WEEK_DAY_VISIBLE_CAP = 5;
             <h2 class="text-base font-semibold text-ink">Scheduled bills & paychecks</h2>
             <p class="text-sm text-slate-500">Keep predictable money movement visible before it happens.</p>
           </div>
-          @if (!showScheduleForm() && !editingId()) {
+          @if (!scheduleSheetOpen()) {
             <button mat-flat-button color="primary" type="button" (click)="startNewItem()">
               <mat-icon>add</mat-icon>
               Add item
             </button>
           }
         </div>
-
-        @if (showScheduleForm() || editingId()) {
-          <div
-            class="fixed inset-0 z-50 flex items-end justify-center bg-ink/35 p-0 backdrop-blur-[2px] sm:items-center sm:p-6"
-            role="dialog"
-            aria-modal="true"
-            [attr.aria-label]="editingId() ? 'Edit scheduled item' : 'Add bill or paycheck'"
-            (click)="cancelEdit()"
-          >
-            <mat-card
-              class="app-card max-h-[92vh] w-full overflow-hidden !rounded-b-none !shadow-floating sm:max-w-xl sm:!rounded-3xl"
-              (click)="$event.stopPropagation()"
-            >
-              <mat-card-header class="border-b border-line !px-5 !py-4">
-                <div class="flex w-full items-start justify-between gap-4">
-                  <div>
-                    <mat-card-title class="!text-base !text-ink">
-                      {{ editingId() ? 'Edit scheduled item' : 'Add bill / paycheck' }}
-                    </mat-card-title>
-                    <mat-card-subtitle>
-                      Saving creates matching transactions on scheduled dates so balances and reports stay current.
-                    </mat-card-subtitle>
-                  </div>
-                  <button mat-icon-button type="button" (click)="cancelEdit()" aria-label="Close form">
-                    <mat-icon>close</mat-icon>
-                  </button>
-                </div>
-              </mat-card-header>
-              <mat-card-content class="max-h-[calc(92vh-6rem)] overflow-y-auto !p-5">
-                <form class="flex flex-col gap-1" [formGroup]="form" (ngSubmit)="saveItem()">
-              <mat-form-field>
-                <mat-label>Title</mat-label>
-                <input matInput formControlName="title" autocomplete="off" />
-              </mat-form-field>
-
-              <div class="grid grid-cols-1 gap-1 sm:grid-cols-2">
-                <mat-form-field>
-                  <mat-label>Amount</mat-label>
-                  <input matInput type="number" step="0.01" min="0.01" formControlName="amount" />
-                </mat-form-field>
-                <mat-form-field>
-                  <mat-label>Kind</mat-label>
-                  <mat-select formControlName="kind" panelClass="calendar-select-panel">
-                    <mat-option value="expense">Bill / expense</mat-option>
-                    <mat-option value="income">Income</mat-option>
-                  </mat-select>
-                </mat-form-field>
-              </div>
-
-              <mat-form-field>
-                <mat-label>Schedule</mat-label>
-                <mat-select formControlName="scheduleType" panelClass="calendar-select-panel">
-                  <mat-option value="monthly">Monthly on a day</mat-option>
-                  <mat-option value="weekly">Weekly on a day</mat-option>
-                  <mat-option value="fixed">One-time date</mat-option>
-                </mat-select>
-              </mat-form-field>
-
-              @if (scheduleType() === 'monthly') {
-                <mat-form-field>
-                  <mat-label>Day of month</mat-label>
-                  <input matInput type="number" min="1" max="31" formControlName="dayOfMonth" />
-                </mat-form-field>
-              }
-              @if (scheduleType() === 'weekly') {
-                <mat-form-field>
-                  <mat-label>Weekday</mat-label>
-                  <mat-select formControlName="dayOfWeek" panelClass="calendar-select-panel">
-                    <mat-option [value]="1">Monday</mat-option>
-                    <mat-option [value]="2">Tuesday</mat-option>
-                    <mat-option [value]="3">Wednesday</mat-option>
-                    <mat-option [value]="4">Thursday</mat-option>
-                    <mat-option [value]="5">Friday</mat-option>
-                    <mat-option [value]="6">Saturday</mat-option>
-                    <mat-option [value]="0">Sunday</mat-option>
-                  </mat-select>
-                </mat-form-field>
-              }
-              @if (scheduleType() === 'fixed') {
-                <mat-form-field>
-                  <mat-label>Date</mat-label>
-                  <input matInput type="date" formControlName="fixedDate" />
-                </mat-form-field>
-              }
-
-              <mat-form-field>
-                <mat-label>Starts</mat-label>
-                <input matInput type="date" formControlName="startDate" />
-              </mat-form-field>
-
-              <mat-form-field>
-                <mat-label>Account</mat-label>
-                <mat-select formControlName="accountId" panelClass="calendar-select-panel">
-                  @for (a of accounts(); track a.id) {
-                    <mat-option [value]="a.id">{{ a.name }}</mat-option>
-                  }
-                </mat-select>
-                <mat-hint>Required — posts a transaction that updates balances</mat-hint>
-              </mat-form-field>
-
-              <mat-form-field>
-                <mat-label>Category (optional)</mat-label>
-                <mat-select formControlName="categoryId" panelClass="calendar-select-panel">
-                  <mat-option value="">—</mat-option>
-                  @for (c of userCategories(); track c.id) {
-                    <mat-option [value]="c.id">{{ c.name }}</mat-option>
-                  }
-                </mat-select>
-              </mat-form-field>
-
-              <mat-checkbox formControlName="isActive" class="mb-2">Active</mat-checkbox>
-
-              <div class="sticky bottom-0 -mx-5 -mb-5 mt-2 flex flex-wrap justify-end gap-2 border-t border-line bg-surface px-5 py-4">
-                <button mat-button type="button" (click)="cancelEdit()">Cancel</button>
-                <button
-                  mat-flat-button
-                  color="primary"
-                  type="submit"
-                  [disabled]="form.invalid || saving()"
-                >
-                  {{ saving() ? 'Saving…' : editingId() ? 'Save changes' : 'Add item' }}
-                </button>
-              </div>
-            </form>
-          </mat-card-content>
-        </mat-card>
-      </div>
-        }
-      </div>
 
       <mat-card class="app-card">
         <mat-card-header>
@@ -565,6 +438,121 @@ const WEEK_DAY_VISIBLE_CAP = 5;
         </mat-card-content>
       </mat-card>
     </div>
+
+    @if (scheduleSheetOpen()) {
+      <app-modal-sheet
+        [title]="editingId() ? 'Edit scheduled item' : 'Add bill / paycheck'"
+        subtitle="Saving creates matching transactions on scheduled dates so balances and reports stay current."
+        [ariaLabel]="editingId() ? 'Edit scheduled item' : 'Add bill or paycheck'"
+        (closed)="cancelEdit()"
+      >
+        <form id="schedule-form" class="space-y-5" [formGroup]="form" (ngSubmit)="saveItem()">
+          <section class="space-y-3">
+            <p class="kicker">What and how much</p>
+            <mat-form-field appearance="outline">
+              <mat-label>Title</mat-label>
+              <input matInput formControlName="title" autocomplete="off" />
+            </mat-form-field>
+            <div class="grid gap-3 sm:grid-cols-[1fr_1.1fr]">
+              <mat-form-field appearance="outline">
+                <mat-label>Amount</mat-label>
+                <input matInput type="number" step="0.01" min="0.01" formControlName="amount" />
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Kind</mat-label>
+                <mat-select formControlName="kind" panelClass="calendar-select-panel">
+                  <mat-option value="expense">Bill / expense</mat-option>
+                  <mat-option value="income">Income</mat-option>
+                </mat-select>
+              </mat-form-field>
+            </div>
+          </section>
+
+          <section class="rounded-2xl border border-line bg-action-soft/40 p-4">
+            <p class="kicker">Schedule</p>
+            <div class="mt-3 space-y-3">
+              <mat-form-field appearance="outline">
+                <mat-label>Schedule</mat-label>
+                <mat-select formControlName="scheduleType" panelClass="calendar-select-panel">
+                  <mat-option value="monthly">Monthly on a day</mat-option>
+                  <mat-option value="weekly">Weekly on a day</mat-option>
+                  <mat-option value="fixed">One-time date</mat-option>
+                </mat-select>
+              </mat-form-field>
+
+              @if (scheduleType() === 'monthly') {
+                <mat-form-field appearance="outline">
+                  <mat-label>Day of month</mat-label>
+                  <input matInput type="number" min="1" max="31" formControlName="dayOfMonth" />
+                </mat-form-field>
+              }
+              @if (scheduleType() === 'weekly') {
+                <mat-form-field appearance="outline">
+                  <mat-label>Weekday</mat-label>
+                  <mat-select formControlName="dayOfWeek" panelClass="calendar-select-panel">
+                    <mat-option [value]="1">Monday</mat-option>
+                    <mat-option [value]="2">Tuesday</mat-option>
+                    <mat-option [value]="3">Wednesday</mat-option>
+                    <mat-option [value]="4">Thursday</mat-option>
+                    <mat-option [value]="5">Friday</mat-option>
+                    <mat-option [value]="6">Saturday</mat-option>
+                    <mat-option [value]="0">Sunday</mat-option>
+                  </mat-select>
+                </mat-form-field>
+              }
+              @if (scheduleType() === 'fixed') {
+                <mat-form-field appearance="outline">
+                  <mat-label>Date</mat-label>
+                  <input matInput type="date" formControlName="fixedDate" />
+                </mat-form-field>
+              }
+
+              <mat-form-field appearance="outline">
+                <mat-label>Starts</mat-label>
+                <input matInput type="date" formControlName="startDate" />
+              </mat-form-field>
+            </div>
+          </section>
+
+          <section class="space-y-3">
+            <p class="kicker">Account and category</p>
+            <mat-form-field appearance="outline">
+              <mat-label>Account</mat-label>
+              <mat-select formControlName="accountId" panelClass="calendar-select-panel">
+                @for (a of accounts(); track a.id) {
+                  <mat-option [value]="a.id">{{ a.name }}</mat-option>
+                }
+              </mat-select>
+              <mat-hint>Required — posts a transaction that updates balances</mat-hint>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Category (optional)</mat-label>
+              <mat-select formControlName="categoryId" panelClass="calendar-select-panel">
+                <mat-option value="">—</mat-option>
+                @for (c of userCategories(); track c.id) {
+                  <mat-option [value]="c.id">{{ c.name }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+
+            <mat-checkbox formControlName="isActive">Active</mat-checkbox>
+          </section>
+        </form>
+
+        <button modalActions mat-button type="button" (click)="cancelEdit()">Cancel</button>
+        <button
+          modalActions
+          mat-flat-button
+          color="primary"
+          type="submit"
+          form="schedule-form"
+          [disabled]="form.invalid || saving()"
+        >
+          {{ saving() ? 'Saving…' : editingId() ? 'Save changes' : 'Add item' }}
+        </button>
+      </app-modal-sheet>
+    }
   `,
   styles: `
     /* Month grid only — we provide our own header and week list view. */
@@ -588,6 +576,7 @@ export class CalendarComponent {
   readonly viewMode = signal<CalendarView>('month');
   readonly editingId = signal<string | null>(null);
   readonly showScheduleForm = signal(false);
+  readonly scheduleSheetOpen = computed(() => this.showScheduleForm() || !!this.editingId());
   readonly saving = signal(false);
 
   readonly dayKey = dayKey;
