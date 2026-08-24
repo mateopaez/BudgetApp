@@ -320,7 +320,31 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
                     </p>
                   </div>
 
-                  <div class="overflow-x-auto rounded-xl border border-line">
+                  <div class="space-y-2 sm:hidden">
+                    @for (row of importReviewPageRows(); track row.importHash) {
+                      <div class="rounded-2xl border border-line bg-surface p-4">
+                        <div class="flex items-start justify-between gap-3">
+                          <div class="min-w-0">
+                            <p class="truncate font-semibold text-ink">{{ row.merchant }}</p>
+                            <p class="mt-1 text-xs text-ink-muted">
+                              {{ row.postedAt | date: 'mediumDate' }} · {{ row.kind }}
+                            </p>
+                          </div>
+                          <p class="money shrink-0 font-semibold" [class]="row.amount < 0 ? 'text-red-600' : 'text-action'">
+                            {{ row.amount | currency }}
+                          </p>
+                        </div>
+                        <p
+                          class="mt-3 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
+                          [class]="row.isDuplicate ? 'bg-amber-100 text-amber-800' : 'bg-action-soft text-action'"
+                        >
+                          {{ row.isDuplicate ? 'Already imported — will skip' : 'Ready to import' }}
+                        </p>
+                      </div>
+                    }
+                  </div>
+
+                  <div class="hidden overflow-x-auto rounded-xl border border-line sm:block">
                     <table mat-table [dataSource]="importReviewPageRows()" class="w-full min-w-[640px]">
                       <ng-container matColumnDef="postedAt">
                         <th mat-header-cell *matHeaderCellDef>Date</th>
@@ -345,7 +369,7 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
                             class="font-medium"
                             [class]="row.isDuplicate ? 'text-amber-600' : 'text-action'"
                           >
-                            {{ row.isDuplicate ? 'Already imported, skipped' : 'Ready' }}
+                            {{ row.isDuplicate ? 'Already imported — will skip' : 'Ready to import' }}
                           </span>
                         </td>
                       </ng-container>
