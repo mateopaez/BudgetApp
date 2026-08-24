@@ -31,6 +31,7 @@ export interface TransactionInput {
   categoryId: string | null;
   split?: SplitLine[];
   importHash?: string;
+  scheduledItemId?: string | null;
 }
 
 export interface TransactionFilters {
@@ -123,6 +124,7 @@ export class TransactionService {
       categoryId: (data['categoryId'] as string | null) ?? null,
       split: data['split'] as SplitLine[] | undefined,
       importHash: data['importHash'] as string | undefined,
+      scheduledItemId: (data['scheduledItemId'] as string | null | undefined) ?? null,
       createdAt: toDate(data['createdAt']),
       updatedAt: toDate(data['updatedAt']),
     };
@@ -148,6 +150,7 @@ export class TransactionService {
       categoryId: input.categoryId,
       ...(input.split ? { split: input.split } : {}),
       ...(input.importHash ? { importHash: input.importHash } : {}),
+      ...(input.scheduledItemId ? { scheduledItemId: input.scheduledItemId } : {}),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     };

@@ -3,6 +3,8 @@ import {
   buildMonthGrid,
   dayKey,
   expandScheduledOccurrences,
+  filterPostedScheduledOccurrences,
+  resolveScheduledPostingDate,
   signedScheduledAmount,
   transactionsAsOccurrences,
 } from './calendar.util';
@@ -136,5 +138,65 @@ describe('calendar.util', () => {
     const grid = buildMonthGrid(2026, 7); // Aug 2026 starts Saturday
     expect(grid.length).toBe(42);
     expect(grid[0].getDay()).toBe(1); // Monday
+  });
+
+  it('resolves the most recent due date when posting a scheduled item', () => {
+    const pay = item({
+      id: 'pay',
+      title: 'Paycheck',
+      kind: 'income',
+      amount: 2000,
+      scheduleType: 'monthly',
+      dayOfMonth: 15,
+      startDate: new Date(2026, 0, 1),
+    });
+    const posting = resolveScheduledPostingDate(pay, new Date(2026, 7, 20));
+    expect(dayKey(posting!)).toBe('2026-08-15');
+  });
+
+  it('resolves the next future date when nothing is due yet this cycle', () => {
+    const pay = item({
+      id: 'pay',
+      title: 'Paycheck',
+      kind: 'income',
+      amount: 2000,
+      scheduleType: 'monthly',
+      dayOfMonth: 15,
+      startDate: new Date(2026, 7, 1),
+    });
+    const posting = resolveScheduledPostingDate(pay, new Date(2026, 7, 10));
+    expect(dayKey(posting!)).toBe('2026-08-15');
+  });
+
+  it('hides scheduled occurrences that already have a posted transaction', () => {
+    const scheduled = expandScheduledOccurrences(
+      [
+        item({
+          id: 'rent',
+          title: 'Rent',
+          amount: 1200,
+          scheduleType: 'monthly',
+          dayOfMonth: 1,
+        }),
+      ],
+      new Date(2026, 7, 1),
+      new Date(2026, 7, 31)
+    );
+    const txs: Transaction[] = [
+      {
+        id: 't1',
+        accountId: 'a1',
+        postedAt: new Date(2026, 7, 1),
+        merchant: 'Rent',
+        description: null,
+        amount: -1200,
+        kind: 'expense',
+        categoryId: null,
+        scheduledItemId: 'rent',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
+    expect(filterPostedScheduledOccurrences(scheduled, txs).length).toBe(0);
   });
 });

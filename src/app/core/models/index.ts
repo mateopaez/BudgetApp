@@ -47,6 +47,8 @@ export interface Transaction {
   categoryId: string | null;
   split?: SplitLine[];
   importHash?: string;
+  /** Links a posted transaction back to a scheduled bill/paycheck. */
+  scheduledItemId?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

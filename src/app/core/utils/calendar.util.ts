@@ -149,6 +149,37 @@ function daysInMonth(year: number, monthIndex: number): number {
   return new Date(year, monthIndex + 1, 0).getDate();
 }
 
+/** Next (or most recent due) occurrence to post as a real transaction. */
+export function resolveScheduledPostingDate(
+  item: ScheduledItem,
+  now: Date = new Date()
+): Date | null {
+  const today = startOfDay(now);
+  const rangeStart = startOfDay(item.startDate);
+  const rangeEnd = startOfDay(new Date(today));
+  rangeEnd.setMonth(rangeEnd.getMonth() + 3);
+
+  const occs = expandScheduledOccurrences([item], rangeStart, rangeEnd).map((o) => o.date);
+  if (occs.length === 0) return null;
+
+  const dueOrPast = [...occs].reverse().find((d) => d.getTime() <= today.getTime());
+  if (dueOrPast) return dueOrPast;
+  return occs.find((d) => d.getTime() >= today.getTime()) ?? null;
+}
+
+/** Drop scheduled rows that already have a posted transaction for the same item + day. */
+export function filterPostedScheduledOccurrences(
+  scheduled: CalendarOccurrence[],
+  transactions: Transaction[]
+): CalendarOccurrence[] {
+  const posted = new Set(
+    transactions
+      .filter((tx) => tx.scheduledItemId)
+      .map((tx) => `${tx.scheduledItemId}:${dayKey(tx.postedAt)}`)
+  );
+  return scheduled.filter((occ) => !posted.has(`${occ.itemId}:${dayKey(occ.date)}`));
+}
+
 export function buildMonthGrid(year: number, monthIndex: number): Date[] {
   const first = new Date(year, monthIndex, 1);
   const startOffset = (first.getDay() + 6) % 7; // Monday-first

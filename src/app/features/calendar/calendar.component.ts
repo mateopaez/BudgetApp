@@ -1,7 +1,8 @@
 import { CurrencyPipe, DatePipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -12,7 +13,6 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import {
   CalendarEvent,
-  CalendarViewMode,
   MatCalendarComponent,
 } from 'ngx-m3-calendar';
 import { startWith } from 'rxjs/operators';
@@ -21,22 +21,30 @@ import { AccountService } from '../../core/services/account.service';
 import { CategoryService } from '../../core/services/category.service';
 import { ScheduledItemService } from '../../core/services/scheduled-item.service';
 import { TransactionService } from '../../core/services/transaction.service';
+import { signedAmountForKind } from '../../core/utils/amount.util';
 import { computeNetWorth } from '../../core/utils/balance-history.util';
 import {
   CalendarOccurrence,
   dayKey,
   dayNet,
   expandScheduledOccurrences,
+  filterPostedScheduledOccurrences,
+  resolveScheduledPostingDate,
   transactionsAsOccurrences,
+  weekDays,
 } from '../../core/utils/calendar.util';
-import { endOfDay, startOfDay } from '../../core/utils/date.util';
+import { endOfDay, formatDateParam, resolveCurrentWeek, startOfDay } from '../../core/utils/date.util';
 
-interface CalendarEventData {
-  source: 'scheduled' | 'transaction';
-  amount: number;
-  kind: 'income' | 'expense';
-  itemId: string;
+interface DaySummaryData {
+  type: 'day-summary';
+  dateKey: string;
+  count: number;
 }
+
+type CalendarView = 'month' | 'week';
+
+/** Max items shown per day in the week grid before “+ N more”. */
+const WEEK_DAY_VISIBLE_CAP = 5;
 
 @Component({
   selector: 'app-calendar',
@@ -45,6 +53,7 @@ interface CalendarEventData {
     ReactiveFormsModule,
     CurrencyPipe,
     DatePipe,
+    RouterLink,
     MatCalendarComponent,
     MatCardModule,
     MatButtonModule,
@@ -56,7 +65,7 @@ interface CalendarEventData {
     MatSnackBarModule,
   ],
   template: `
-    <div class="space-y-6">
+    <div class="calendar-page space-y-6">
       <div class="page-header">
         <h1 class="page-title">Calendar</h1>
         <p class="page-subtitle">
@@ -65,19 +74,114 @@ interface CalendarEventData {
         </p>
       </div>
 
-      <div class="app-card overflow-hidden p-2 sm:p-3">
-        <mc-calendar
-          [events]="calendarEvents()"
-          [selectedDate]="selectedDate()"
-          [viewMode]="viewMode()"
-          [showViewToggle]="true"
-          [weekStartsOn]="1"
-          [startHour]="6"
-          [endHour]="22"
-          (dateSelected)="onDateSelected($event)"
-          (viewModeChanged)="onViewModeChanged($event)"
-          (eventClicked)="onEventClicked($event)"
-        />
+      <div class="app-card overflow-hidden p-3 sm:p-4">
+        <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div class="flex flex-wrap items-center gap-2">
+            <div
+              class="inline-flex overflow-hidden rounded-lg border border-brand-200 bg-white shadow-sm"
+              role="group"
+              aria-label="Calendar view"
+            >
+              <button
+                type="button"
+                class="px-4 py-2 text-sm font-semibold transition-colors"
+                [class.bg-brand-600]="viewMode() === 'month'"
+                [class.text-white]="viewMode() === 'month'"
+                [class.bg-white]="viewMode() !== 'month'"
+                [class.text-slate-600]="viewMode() !== 'month'"
+                (click)="setView('month')"
+              >
+                Month
+              </button>
+              <button
+                type="button"
+                class="border-l border-brand-200 px-4 py-2 text-sm font-semibold transition-colors"
+                [class.bg-brand-600]="viewMode() === 'week'"
+                [class.text-white]="viewMode() === 'week'"
+                [class.bg-white]="viewMode() !== 'week'"
+                [class.text-slate-600]="viewMode() !== 'week'"
+                (click)="setView('week')"
+              >
+                Week
+              </button>
+            </div>
+            <button mat-icon-button type="button" (click)="shiftPeriod(-1)" aria-label="Previous">
+              <mat-icon>chevron_left</mat-icon>
+            </button>
+            <button mat-stroked-button type="button" (click)="goToday()">Today</button>
+            <button mat-icon-button type="button" (click)="shiftPeriod(1)" aria-label="Next">
+              <mat-icon>chevron_right</mat-icon>
+            </button>
+          </div>
+          <p class="text-sm font-semibold text-midnight-900">{{ periodLabel() }}</p>
+        </div>
+
+        @if (viewMode() === 'month') {
+          <mc-calendar
+            class="calendar-month-only"
+            [events]="calendarEvents()"
+            [selectedDate]="selectedDate()"
+            [viewMode]="'month'"
+            [showViewToggle]="false"
+            [weekStartsOn]="1"
+            (dateSelected)="onDateSelected($event)"
+            (eventClicked)="onEventClicked($event)"
+          />
+        } @else {
+          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+            @for (day of weekCells(); track dayKey(day)) {
+              <div
+                class="flex max-h-80 min-h-[12rem] flex-col rounded-xl border border-brand-100 bg-white p-3 shadow-sm transition-shadow"
+                [class]="weekDayColumnClass(day)"
+              >
+                <button
+                  type="button"
+                  class="mb-2 w-full text-left"
+                  (click)="selectDay(day)"
+                >
+                  <p class="text-xs font-medium uppercase tracking-wide text-slate-500">
+                    {{ day | date: 'EEE' }}
+                  </p>
+                  <div class="flex items-baseline justify-between gap-2">
+                    <p class="text-lg font-semibold text-midnight-900">{{ day | date: 'd' }}</p>
+                    <p
+                      class="text-xs font-semibold"
+                      [class.text-emerald-600]="dayNetFor(day) > 0"
+                      [class.text-red-600]="dayNetFor(day) < 0"
+                      [class.text-slate-400]="dayNetFor(day) === 0"
+                    >
+                      {{ dayNetFor(day) | currency }}
+                    </p>
+                  </div>
+                </button>
+
+                <ul class="m-0 min-h-0 flex-1 list-none space-y-1.5 overflow-y-auto p-0">
+                  @for (occ of visibleWeekItems(day); track occ.id) {
+                    <li
+                      class="rounded-md px-2 py-1.5 text-xs leading-snug"
+                      [class]="occChipClass(occ)"
+                    >
+                      <p class="truncate font-medium">{{ occ.title }}</p>
+                      <p class="font-semibold">{{ occ.amount | currency }}</p>
+                    </li>
+                  } @empty {
+                    <li class="py-4 text-center text-xs text-slate-400">No activity</li>
+                  }
+                </ul>
+
+                @if (weekOverflowCount(day) > 0) {
+                  <button
+                    type="button"
+                    class="mt-2 w-full rounded-md py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                    (click)="selectDay(day)"
+                  >
+                    + {{ weekOverflowCount(day) }} more
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        }
       </div>
 
       <div class="grid gap-4 lg:grid-cols-2">
@@ -87,7 +191,10 @@ interface CalendarEventData {
               {{ selectedDate() | date: 'fullDate' }}
             </mat-card-title>
             <mat-card-subtitle>
-              Day net {{ dayNetFor(selectedDate()) | currency }}
+              {{ selectedDayOccurrences().length }} item{{
+                selectedDayOccurrences().length === 1 ? '' : 's'
+              }}
+              · net {{ dayNetFor(selectedDate()) | currency }}
             </mat-card-subtitle>
           </mat-card-header>
           <mat-card-content>
@@ -100,7 +207,7 @@ interface CalendarEventData {
                     <p class="truncate font-medium text-midnight-900">{{ occ.title }}</p>
                     <p class="text-xs text-slate-500">
                       {{ occ.kind }} ·
-                      {{ occ.source === 'scheduled' ? 'Scheduled' : 'Actual' }}
+                      {{ occ.source === 'scheduled' ? 'Scheduled' : 'Posted' }}
                     </p>
                   </div>
                   <span
@@ -113,10 +220,21 @@ interface CalendarEventData {
                 </li>
               } @empty {
                 <li class="px-4 py-6 text-center text-sm text-slate-500">
-                  Nothing on this day. Click a date on the calendar or add a bill below.
+                  Nothing on this day. Click a count on the calendar or add a bill below.
                 </li>
               }
             </ul>
+
+            @if (selectedDayOccurrences().length) {
+              <a
+                mat-stroked-button
+                class="mt-3"
+                [routerLink]="['/transactions']"
+                [queryParams]="transactionsLinkParams()"
+              >
+                Open in Transactions
+              </a>
+            }
 
             <div class="mt-4">
               <p class="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
@@ -151,7 +269,7 @@ interface CalendarEventData {
               {{ editingId() ? 'Edit scheduled item' : 'Add bill / paycheck' }}
             </mat-card-title>
             <mat-card-subtitle>
-              Recurring items show on every matching date
+              New items post a matching transaction so balances update
             </mat-card-subtitle>
           </mat-card-header>
           <mat-card-content>
@@ -217,13 +335,13 @@ interface CalendarEventData {
               </mat-form-field>
 
               <mat-form-field>
-                <mat-label>Account (optional)</mat-label>
+                <mat-label>Account</mat-label>
                 <mat-select formControlName="accountId" panelClass="calendar-select-panel">
-                  <mat-option value="">—</mat-option>
                   @for (a of accounts(); track a.id) {
                     <mat-option [value]="a.id">{{ a.name }}</mat-option>
                   }
                 </mat-select>
+                <mat-hint>Required — posts a transaction that updates balances</mat-hint>
               </mat-form-field>
 
               <mat-form-field>
@@ -239,7 +357,12 @@ interface CalendarEventData {
               <mat-checkbox formControlName="isActive" class="mb-2">Active</mat-checkbox>
 
               <div class="flex flex-wrap gap-2">
-                <button mat-flat-button color="primary" type="submit" [disabled]="form.invalid || saving()">
+                <button
+                  mat-flat-button
+                  color="primary"
+                  type="submit"
+                  [disabled]="form.invalid || saving()"
+                >
                   {{ editingId() ? 'Save' : 'Add' }}
                 </button>
                 @if (editingId()) {
@@ -295,19 +418,28 @@ interface CalendarEventData {
       </mat-card>
     </div>
   `,
+  styles: `
+    /* Month grid only — we provide our own header and week list view. */
+    :host ::ng-deep .calendar-month-only .calendar__header {
+      display: none;
+    }
+  `,
 })
 export class CalendarComponent {
   private readonly fb = inject(FormBuilder);
   private readonly snack = inject(MatSnackBar);
+  private readonly router = inject(Router);
   private readonly scheduledService = inject(ScheduledItemService);
   private readonly transactionService = inject(TransactionService);
   private readonly accountService = inject(AccountService);
   private readonly categoryService = inject(CategoryService);
 
   readonly selectedDate = signal(startOfDay(new Date()));
-  readonly viewMode = signal<CalendarViewMode>('month');
+  readonly viewMode = signal<CalendarView>('month');
   readonly editingId = signal<string | null>(null);
   readonly saving = signal(false);
+
+  readonly dayKey = dayKey;
 
   readonly accounts = toSignal(this.accountService.watchAccounts(), { initialValue: [] });
   readonly categories = toSignal(this.categoryService.watchCategories(), { initialValue: [] });
@@ -331,7 +463,7 @@ export class CalendarComponent {
       new Date().toISOString().slice(0, 10),
       Validators.required
     ),
-    accountId: this.fb.nonNullable.control(''),
+    accountId: this.fb.nonNullable.control('', Validators.required),
     categoryId: this.fb.nonNullable.control(''),
     isActive: this.fb.nonNullable.control(true),
   });
@@ -343,19 +475,44 @@ export class CalendarComponent {
     { initialValue: this.form.controls.scheduleType.value }
   );
 
-  /** Expand scheduled + txs across a wide window so month/week navigation stays populated. */
   private readonly occurrenceWindow = computed(() => {
     const anchor = this.selectedDate();
     const start = startOfDay(new Date(anchor.getFullYear(), anchor.getMonth() - 2, 1));
     const end = endOfDay(new Date(anchor.getFullYear(), anchor.getMonth() + 3, 0));
-    const scheduled = expandScheduledOccurrences(this.scheduled(), start, end);
-    const actual = transactionsAsOccurrences(this.transactions(), start, end);
+    const txs = this.transactions();
+    const scheduled = filterPostedScheduledOccurrences(
+      expandScheduledOccurrences(this.scheduled(), start, end),
+      txs
+    );
+    const actual = transactionsAsOccurrences(txs, start, end);
     return [...scheduled, ...actual];
   });
 
-  readonly calendarEvents = computed((): CalendarEvent[] =>
-    this.occurrenceWindow().map((occ) => this.toCalendarEvent(occ))
-  );
+  /** One summary chip per day for the month/week grid (“3 transactions”). */
+  readonly calendarEvents = computed((): CalendarEvent[] => {
+    const byDay = new Map<string, CalendarOccurrence[]>();
+    for (const occ of this.occurrenceWindow()) {
+      const key = dayKey(occ.date);
+      if (!byDay.has(key)) byDay.set(key, []);
+      byDay.get(key)!.push(occ);
+    }
+
+    return [...byDay.entries()].map(([dateKey, occs]) => {
+      const count = occs.length;
+      const net = dayNet(occs);
+      const label =
+        count === 1 ? '1 transaction' : `${count} transactions`;
+      return {
+        id: `day:${dateKey}`,
+        title: label,
+        start: occs[0].date,
+        end: occs[0].date,
+        isAllDay: true,
+        color: net >= 0 ? '#dcfce7' : '#fee2e2',
+        data: { type: 'day-summary', dateKey, count } satisfies DaySummaryData,
+      };
+    });
+  });
 
   readonly selectedDayOccurrences = computed(() => {
     const key = dayKey(this.selectedDate());
@@ -368,25 +525,127 @@ export class CalendarComponent {
     const start = startOfDay(new Date());
     const end = new Date(start);
     end.setDate(end.getDate() + 6);
-    return expandScheduledOccurrences(this.scheduled(), start, end);
+    return filterPostedScheduledOccurrences(
+      expandScheduledOccurrences(this.scheduled(), start, end),
+      this.transactions()
+    );
   });
+
+  readonly weekStart = computed(() => {
+    const week = resolveCurrentWeek(this.selectedDate());
+    return week.start ?? this.selectedDate();
+  });
+
+  readonly weekCells = computed(() => weekDays(this.weekStart()));
+
+  readonly periodLabel = computed(() => {
+    if (this.viewMode() === 'month') {
+      return this.selectedDate().toLocaleDateString(undefined, {
+        month: 'long',
+        year: 'numeric',
+      });
+    }
+    const days = this.weekCells();
+    const fmt = (d: Date, withYear: boolean) =>
+      d.toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        ...(withYear ? { year: 'numeric' } : {}),
+      });
+    const sameYear = days[0].getFullYear() === days[6].getFullYear();
+    return `${fmt(days[0], !sameYear)} – ${fmt(days[6], true)}`;
+  });
+
+  constructor() {
+    effect(() => {
+      const accounts = this.accounts();
+      if (this.form.controls.accountId.value || !accounts.length) return;
+      const checking = accounts.find((a) => a.type === 'checking') ?? accounts[0];
+      this.form.patchValue({ accountId: checking.id });
+    });
+  }
+
+  transactionsLinkParams(): Record<string, string> {
+    const day = formatDateParam(this.selectedDate());
+    return { period: 'custom', from: day, to: day };
+  }
 
   onDateSelected(date: Date): void {
     this.selectedDate.set(startOfDay(date));
   }
 
-  onViewModeChanged(mode: CalendarViewMode): void {
-    this.viewMode.set(mode);
+  setView(view: CalendarView): void {
+    this.viewMode.set(view);
+  }
+
+  shiftPeriod(dir: number): void {
+    const d = new Date(this.selectedDate());
+    if (this.viewMode() === 'month') {
+      d.setMonth(d.getMonth() + dir);
+    } else {
+      d.setDate(d.getDate() + dir * 7);
+    }
+    this.selectedDate.set(startOfDay(d));
+  }
+
+  goToday(): void {
+    this.selectedDate.set(startOfDay(new Date()));
+  }
+
+  selectDay(day: Date): void {
+    this.selectedDate.set(startOfDay(day));
+  }
+
+  isSelected(day: Date): boolean {
+    return dayKey(day) === dayKey(this.selectedDate());
+  }
+
+  isToday(day: Date): boolean {
+    return dayKey(day) === dayKey(new Date());
+  }
+
+  occurrencesFor(day: Date): CalendarOccurrence[] {
+    const key = dayKey(day);
+    return this.occurrenceWindow()
+      .filter((o) => dayKey(o.date) === key)
+      .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
+  }
+
+  visibleWeekItems(day: Date): CalendarOccurrence[] {
+    return this.occurrencesFor(day).slice(0, WEEK_DAY_VISIBLE_CAP);
+  }
+
+  weekOverflowCount(day: Date): number {
+    const total = this.occurrencesFor(day).length;
+    return Math.max(0, total - WEEK_DAY_VISIBLE_CAP);
+  }
+
+  occChipClass(occ: CalendarOccurrence): string {
+    if (occ.source === 'scheduled') {
+      return occ.kind === 'income'
+        ? 'border border-dashed border-emerald-300 bg-emerald-50/50 text-emerald-900'
+        : 'border border-dashed border-red-300 bg-red-50/50 text-red-900';
+    }
+    return occ.kind === 'income'
+      ? 'bg-emerald-50 text-emerald-900'
+      : 'bg-red-50 text-red-900';
+  }
+
+  weekDayColumnClass(day: Date): string {
+    const parts: string[] = [];
+    if (this.isSelected(day)) {
+      parts.push('ring-2 ring-brand-500 border-brand-400');
+    }
+    if (this.isToday(day)) {
+      parts.push('bg-brand-50');
+    }
+    return parts.join(' ');
   }
 
   onEventClicked(event: CalendarEvent): void {
-    const data = event.data as CalendarEventData | undefined;
-    if (event.start) {
+    const data = event.data as DaySummaryData | undefined;
+    if (data?.type === 'day-summary' || event.start) {
       this.selectedDate.set(startOfDay(new Date(event.start)));
-    }
-    if (data?.source === 'scheduled') {
-      const item = this.scheduled().find((s) => s.id === data.itemId);
-      if (item) this.startEdit(item);
     }
   }
 
@@ -420,7 +679,7 @@ export class CalendarComponent {
       dayOfWeek: item.dayOfWeek,
       fixedDate: item.fixedDate ? item.fixedDate.toISOString().slice(0, 10) : '',
       startDate: item.startDate.toISOString().slice(0, 10),
-      accountId: item.accountId ?? '',
+      accountId: item.accountId ?? this.form.controls.accountId.value,
       categoryId: item.categoryId ?? '',
       isActive: item.isActive,
     });
@@ -428,6 +687,8 @@ export class CalendarComponent {
 
   cancelEdit(): void {
     this.editingId.set(null);
+    const defaultAccount =
+      this.accounts().find((a) => a.type === 'checking')?.id ?? this.accounts()[0]?.id ?? '';
     this.form.reset({
       title: '',
       amount: null,
@@ -437,7 +698,7 @@ export class CalendarComponent {
       dayOfWeek: 1,
       fixedDate: '',
       startDate: new Date().toISOString().slice(0, 10),
-      accountId: '',
+      accountId: defaultAccount,
       categoryId: '',
       isActive: true,
     });
@@ -469,15 +730,61 @@ export class CalendarComponent {
       const id = this.editingId();
       if (id) {
         await this.scheduledService.update(id, input);
+        this.snack.open('Updated scheduled item', 'OK', { duration: 2500 });
       } else {
-        await this.scheduledService.create(input);
+        const scheduledId = await this.scheduledService.create(input);
+        const postingDate = resolveScheduledPostingDate({
+          id: scheduledId,
+          title: input.title,
+          amount: input.amount,
+          kind: input.kind,
+          categoryId: input.categoryId,
+          accountId: input.accountId,
+          scheduleType: input.scheduleType,
+          dayOfMonth: input.dayOfMonth,
+          dayOfWeek: input.dayOfWeek,
+          fixedDate: input.fixedDate,
+          startDate: input.startDate,
+          endDate: input.endDate,
+          isActive: input.isActive,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+
+        if (postingDate && v.accountId) {
+          await this.transactionService.create({
+            accountId: v.accountId,
+            postedAt: postingDate,
+            merchant: v.title.trim(),
+            description: 'Posted from calendar schedule',
+            amount: signedAmountForKind(Number(v.amount), v.kind),
+            kind: v.kind,
+            categoryId: v.categoryId || null,
+            scheduledItemId: scheduledId,
+          });
+          const ref = this.snack.open(
+            `Saved and posted ${v.kind} to Transactions · balances updated`,
+            'View',
+            { duration: 4000 }
+          );
+          ref.onAction().subscribe(() => {
+            void this.router.navigate(['/transactions'], {
+              queryParams: {
+                period: 'custom',
+                from: formatDateParam(postingDate),
+                to: formatDateParam(postingDate),
+              },
+            });
+          });
+        } else {
+          this.snack.open('Saved scheduled item', 'OK', { duration: 2500 });
+        }
       }
       this.cancelEdit();
-      this.snack.open('Saved scheduled item', 'OK', { duration: 2500 });
     } catch (err) {
       console.error(err);
       this.snack.open(
-        'Could not save — deploy Firestore rules if this is a new collection: firebase deploy --only firestore:rules',
+        'Could not save — check account selection and Firestore permissions',
         'Dismiss',
         { duration: 8000 }
       );
@@ -495,29 +802,5 @@ export class CalendarComponent {
       console.error(err);
       this.snack.open('Could not delete item (permissions?)', 'Dismiss', { duration: 5000 });
     }
-  }
-
-  private toCalendarEvent(occ: CalendarOccurrence): CalendarEvent {
-    const isIncome = occ.kind === 'income';
-    const amountLabel = new Intl.NumberFormat(undefined, {
-      style: 'currency',
-      currency: 'USD',
-      maximumFractionDigits: 0,
-    }).format(Math.abs(occ.amount));
-    const prefix = occ.source === 'scheduled' ? '○ ' : '';
-    return {
-      id: occ.id,
-      title: `${prefix}${occ.title} (${isIncome ? '+' : '−'}${amountLabel})`,
-      start: occ.date,
-      end: occ.date,
-      isAllDay: true,
-      color: isIncome ? '#dcfce7' : '#fee2e2',
-      data: {
-        source: occ.source,
-        amount: occ.amount,
-        kind: occ.kind,
-        itemId: occ.itemId,
-      } satisfies CalendarEventData,
-    };
   }
 }
