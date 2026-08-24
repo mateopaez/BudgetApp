@@ -18,6 +18,15 @@ import { buildCategorySpendRows } from '../../core/utils/budget.util';
 import { resolveDateRange } from '../../core/utils/date.util';
 import { confirmDialog } from '../../shared/confirm-dialog/confirm-dialog.component';
 
+interface CategoryBudgetRow {
+  cat: Category;
+  budget: CategoryBudget | null;
+  spent: number;
+  remaining: number | null;
+  percentOfBudget: number | null;
+  monthlyBudgetAmount: number | null;
+}
+
 @Component({
   selector: 'app-categories',
   standalone: true,
@@ -37,7 +46,7 @@ import { confirmDialog } from '../../shared/confirm-dialog/confirm-dialog.compon
       <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div class="page-header">
           <h1 class="page-title">Budgets</h1>
-          <p class="page-subtitle">Set monthly guardrails and keep category spending easy to understand</p>
+          <p class="page-subtitle">Set spending guardrails and see what needs attention this month</p>
         </div>
         @if (!showAddCategory()) {
           <button mat-flat-button color="primary" type="button" (click)="showAddCategory.set(true)">
@@ -53,8 +62,9 @@ import { confirmDialog } from '../../shared/confirm-dialog/confirm-dialog.compon
           <p class="money mt-1 text-2xl font-semibold text-finance-expense">{{ budgetSummary().spent | currency }}</p>
         </div>
         <div class="metric">
-          <p class="kicker">Budgeted</p>
+          <p class="kicker">Monthly target</p>
           <p class="money mt-1 text-2xl font-semibold text-action">{{ budgetSummary().budgeted | currency }}</p>
+          <p class="mt-1 text-xs text-ink-muted">Weekly budgets are converted to monthly pace.</p>
         </div>
         <div class="metric">
           <p class="kicker">Remaining</p>
@@ -62,7 +72,10 @@ import { confirmDialog } from '../../shared/confirm-dialog/confirm-dialog.compon
             class="money mt-1 text-2xl font-semibold"
             [class]="budgetSummary().remaining < 0 ? 'text-red-600' : 'text-emerald-700'"
           >
-            {{ budgetSummary().remaining | currency }}
+            {{ abs(budgetSummary().remaining) | currency }}
+          </p>
+          <p class="mt-1 text-xs text-ink-muted">
+            {{ budgetSummary().remaining < 0 ? 'Over target' : 'Left this month' }}
           </p>
         </div>
       </div>
@@ -155,36 +168,64 @@ import { confirmDialog } from '../../shared/confirm-dialog/confirm-dialog.compon
                       <button mat-button type="button" class="!mt-1" (click)="cancelBudgetEdit()">Cancel</button>
                     </form>
                   } @else {
-                    <div class="space-y-2">
-                      <div class="flex flex-wrap items-center justify-between gap-2 text-sm">
-                        @if (row.budget) {
-                          <span class="text-slate-600">
-                            {{ row.spent | currency }} of {{ row.budget.amount | currency }}
-                            {{ row.budget.period }}
-                            @if (row.remaining != null) {
-                              ·
-                              <span [class]="row.remaining < 0 ? 'text-red-600 font-medium' : 'text-emerald-700'">
-                                @if (row.remaining < 0) {
-                                  {{ abs(row.remaining) | currency }} over
-                                } @else {
-                                  {{ row.remaining | currency }} left
-                                }
-                              </span>
+                    <div class="space-y-3">
+                      <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div class="min-w-0 space-y-1">
+                          <div class="flex flex-wrap items-center gap-2">
+                            <span
+                              class="rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                              [class]="budgetStatusClass(row)"
+                            >
+                              {{ budgetStatusLabel(row) }}
+                            </span>
+                            @if (row.budget?.period === 'weekly') {
+                              <span class="text-xs text-ink-muted">{{ row.budget?.amount | currency }}/week</span>
                             }
-                          </span>
-                        } @else {
-                          <span class="text-slate-500">No budget set · {{ row.spent | currency }} spent this month</span>
-                        }
+                          </div>
+
+                          @if (row.monthlyBudgetAmount != null) {
+                            <p class="text-sm text-slate-600">
+                              <span class="font-medium text-ink">{{ row.spent | currency }}</span>
+                              spent this month of
+                              <span class="font-medium text-ink">{{ row.monthlyBudgetAmount | currency }}</span>
+                              target
+                            </p>
+                            @if (row.remaining != null) {
+                              <p
+                                class="text-sm font-medium"
+                                [class]="row.remaining < 0 ? 'text-red-600' : 'text-emerald-700'"
+                              >
+                                @if (row.remaining < 0) {
+                                  {{ abs(row.remaining) | currency }} over target
+                                } @else {
+                                  {{ row.remaining | currency }} left this month
+                                }
+                              </p>
+                            }
+                          } @else {
+                            <p class="text-sm text-slate-500">
+                              {{ row.spent | currency }} spent this month · no budget set
+                            </p>
+                          }
+                        </div>
+
                         <button mat-stroked-button type="button" (click)="startBudgetEdit(row.cat, row.budget)">
                           {{ row.budget ? 'Edit budget' : 'Set budget' }}
                         </button>
                       </div>
-                      @if (row.budget && row.percentOfBudget != null) {
-                        <mat-progress-bar
-                          mode="determinate"
-                          [value]="Math.min(row.percentOfBudget, 100)"
-                          [color]="row.percentOfBudget > 100 ? 'warn' : 'primary'"
-                        />
+
+                      @if (row.monthlyBudgetAmount != null && row.percentOfBudget != null) {
+                        <div class="space-y-1">
+                          <mat-progress-bar
+                            mode="determinate"
+                            [value]="Math.min(row.percentOfBudget, 100)"
+                            [color]="row.percentOfBudget > 100 ? 'warn' : 'primary'"
+                            [attr.aria-label]="budgetProgressLabel(row)"
+                          />
+                          <p class="text-xs text-ink-muted">
+                            {{ Math.min(row.percentOfBudget, 100) }}% of target used
+                          </p>
+                        </div>
                       }
                     </div>
                   }
@@ -227,40 +268,83 @@ export class CategoriesComponent {
 
   private readonly monthRange = resolveDateRange('this_month');
 
-  readonly categoryRows = computed(() => {
+  readonly categoryRows = computed<CategoryBudgetRow[]>(() => {
     const spendRows = buildCategorySpendRows(
       this.transactions(),
       this.categories(),
       this.budgets(),
       this.monthRange,
-      { includeZero: true, budgetAs: 'as_configured' }
+      { includeZero: true, budgetAs: 'monthly' }
     );
     const spendById = new Map(spendRows.map((r) => [r.categoryId, r]));
     const budgetById = new Map(this.budgets().map((b) => [b.categoryId, b]));
 
-    return this.categories().map((cat) => {
-      const spend = spendById.get(cat.id);
-      const budget = budgetById.get(cat.id);
-      return {
-        cat,
-        budget: budget ?? null,
-        spent: spend?.spent ?? 0,
-        remaining: spend?.remaining ?? null,
-        percentOfBudget: spend?.percentOfBudget ?? null,
-      };
-    });
+    return this.categories()
+      .map((cat) => {
+        const spend = spendById.get(cat.id);
+        const budget = budgetById.get(cat.id);
+        return {
+          cat,
+          budget: budget ?? null,
+          spent: spend?.spent ?? 0,
+          remaining: spend?.remaining ?? null,
+          percentOfBudget: spend?.percentOfBudget ?? null,
+          monthlyBudgetAmount: spend?.budgetAmount ?? null,
+        };
+      })
+      .sort((a, b) => this.budgetPriority(a) - this.budgetPriority(b) || b.spent - a.spent || a.cat.name.localeCompare(b.cat.name));
   });
 
   readonly budgetSummary = computed(() => {
-    const rows = this.categoryRows().filter((row) => !row.cat.isSystem && row.budget);
+    const rows = this.categoryRows().filter((row) => !row.cat.isSystem && row.monthlyBudgetAmount != null);
     const spent = rows.reduce((sum, row) => sum + row.spent, 0);
-    const budgeted = rows.reduce((sum, row) => sum + (row.budget?.amount ?? 0), 0);
+    const budgeted = rows.reduce((sum, row) => sum + (row.monthlyBudgetAmount ?? 0), 0);
     return {
       spent,
       budgeted,
       remaining: budgeted - spent,
     };
   });
+
+  budgetStatusLabel(row: CategoryBudgetRow): string {
+    if (!row.budget) return row.spent > 0 ? 'No budget' : 'Not tracking';
+    if (row.percentOfBudget == null) return 'Budget set';
+    if (row.percentOfBudget > 100) return 'Over budget';
+    if (row.percentOfBudget >= 80) return 'Near limit';
+    if (row.spent === 0) return 'Not started';
+    return 'On track';
+  }
+
+  budgetStatusClass(row: CategoryBudgetRow): string {
+    const label = this.budgetStatusLabel(row);
+    switch (label) {
+      case 'Over budget':
+        return 'bg-red-100 text-red-700';
+      case 'Near limit':
+        return 'bg-amber-100 text-amber-800';
+      case 'On track':
+        return 'bg-emerald-100 text-emerald-700';
+      case 'No budget':
+        return 'bg-slate-100 text-slate-700';
+      default:
+        return 'bg-action-soft text-action';
+    }
+  }
+
+  budgetProgressLabel(row: CategoryBudgetRow): string {
+    if (row.monthlyBudgetAmount == null || row.percentOfBudget == null) {
+      return `${row.cat.name} has no budget target`;
+    }
+    return `${row.cat.name}: ${row.spent} spent of ${row.monthlyBudgetAmount} monthly target`;
+  }
+
+  private budgetPriority(row: CategoryBudgetRow): number {
+    if (row.cat.isSystem) return 5;
+    if (!row.budget) return row.spent > 0 ? 3 : 4;
+    if ((row.percentOfBudget ?? 0) > 100) return 0;
+    if ((row.percentOfBudget ?? 0) >= 80) return 1;
+    return 2;
+  }
 
   async addCategory(): Promise<void> {
     if (this.addForm.invalid) return;
