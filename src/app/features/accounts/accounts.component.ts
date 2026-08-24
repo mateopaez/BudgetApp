@@ -84,6 +84,37 @@ import { confirmDialog } from '../../shared/confirm-dialog/confirm-dialog.compon
         </div>
       </div>
 
+      @if (accounts().length) {
+        <section class="grid gap-3 lg:grid-cols-3">
+          @for (group of accountTypeSummaries(); track group.type) {
+            <div class="rounded-2xl border border-line bg-surface p-4">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <p class="font-semibold text-ink">{{ group.title }}</p>
+                  <p class="mt-1 text-xs text-ink-muted">{{ group.description }}</p>
+                </div>
+                <span
+                  class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm"
+                  [class]="typeBadgeClass(group.type)"
+                >
+                  <mat-icon class="!text-base">{{ typeIcon(group.type) }}</mat-icon>
+                </span>
+              </div>
+              <p
+                class="money mt-3 text-2xl font-semibold"
+                [class.text-red-600]="group.total < 0"
+                [class.text-action]="group.total >= 0"
+              >
+                {{ group.total | currency }}
+              </p>
+              <p class="mt-1 text-xs text-ink-muted">
+                {{ group.count }} account{{ group.count === 1 ? '' : 's' }}
+              </p>
+            </div>
+          }
+        </section>
+      }
+
       <app-chart-card
         title="Net worth (last 90 days)"
         [labels]="netWorthLabels()"
@@ -214,10 +245,10 @@ import { confirmDialog } from '../../shared/confirm-dialog/confirm-dialog.compon
               </p>
             </div>
             <div class="flex shrink-0 gap-1 self-end sm:self-center">
-              <button mat-icon-button (click)="edit(account)" aria-label="Edit account">
+              <button mat-icon-button (click)="edit(account)" [attr.aria-label]="'Edit ' + account.name">
                 <mat-icon>edit</mat-icon>
               </button>
-              <button mat-icon-button color="warn" (click)="remove(account.id)" aria-label="Delete account">
+              <button mat-icon-button color="warn" (click)="remove(account.id)" [attr.aria-label]="'Delete ' + account.name">
                 <mat-icon>delete</mat-icon>
               </button>
             </div>
@@ -257,6 +288,23 @@ export class AccountsComponent {
   readonly comparisonRows = computed(() =>
     buildAccountComparisonRows(this.accounts(), this.transactions())
   );
+
+  readonly accountTypeSummaries = computed(() => {
+    const accounts = this.accounts();
+    const groups: { type: AccountType; title: string; description: string }[] = [
+      { type: 'checking', title: 'Checking', description: 'Daily cash and bill-pay accounts' },
+      { type: 'savings', title: 'Savings', description: 'Reserves and money set aside' },
+      { type: 'credit_card', title: 'Credit cards', description: 'Liabilities reduce net worth when balances are negative' },
+    ];
+    return groups.map((group) => {
+      const matching = accounts.filter((account) => account.type === group.type);
+      return {
+        ...group,
+        count: matching.length,
+        total: matching.reduce((sum, account) => sum + this.balanceFor(account.id), 0),
+      };
+    });
+  });
 
   private readonly netWorthSeries = computed(() => {
     const end = startOfDay(new Date());

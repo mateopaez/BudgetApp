@@ -98,6 +98,18 @@ import { ChartDonutComponent } from '../../shared/chart-donut/chart-donut.compon
               </div>
             </div>
             <div class="mt-4 space-y-3">
+              @if (accountCount() === 0) {
+                <a class="block rounded-2xl border border-line bg-surface p-4 no-underline transition hover:border-action/50 hover:bg-action-soft/30" routerLink="/accounts">
+                  <p class="font-semibold text-ink">Add your first account</p>
+                  <p class="mt-1 text-sm text-ink-muted">Start with checking so balances and reports have context.</p>
+                </a>
+              }
+              @if (accountCount() > 0 && transactionCount() === 0) {
+                <a class="block rounded-2xl border border-line bg-surface p-4 no-underline transition hover:border-action/50 hover:bg-action-soft/30" routerLink="/transactions" [queryParams]="{ import: '1' }">
+                  <p class="font-semibold text-ink">Import recent activity</p>
+                  <p class="mt-1 text-sm text-ink-muted">Bring in a CSV or add your first transaction manually.</p>
+                </a>
+              }
               @if (uncategorizedCount() > 0) {
                 <a class="block rounded-2xl border border-line bg-surface p-4 no-underline transition hover:border-action/50 hover:bg-action-soft/30" routerLink="/transactions" [queryParams]="uncategorizedQueryParams()">
                   <p class="font-semibold text-ink">Review {{ uncategorizedCount() }} uncategorized</p>
@@ -110,7 +122,7 @@ import { ChartDonutComponent } from '../../shared/chart-donut/chart-donut.compon
                   <p class="mt-1 text-sm text-ink-muted">Check monthly limits before more spending.</p>
                 </a>
               }
-              @if (uncategorizedCount() === 0 && overBudgetRows().length === 0) {
+              @if (accountCount() > 0 && transactionCount() > 0 && uncategorizedCount() === 0 && overBudgetRows().length === 0) {
                 <div class="rounded-2xl border border-line bg-surface p-4">
                   <p class="font-semibold text-ink">Nothing urgent</p>
                   <p class="mt-1 text-sm text-ink-muted">Your activity is categorized and budgets are calm for this period.</p>
@@ -315,6 +327,8 @@ export class DashboardComponent {
   );
 
   readonly netWorth = computed(() => computeNetWorth(this.accounts(), this.transactions()));
+  readonly accountCount = computed(() => this.accounts().length);
+  readonly transactionCount = computed(() => this.transactions().length);
   readonly cashBalance = computed(() =>
     this.accountBalances()
       .filter((row) => row.account.type === 'checking' || row.account.type === 'savings')
