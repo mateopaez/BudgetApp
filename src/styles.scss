@@ -172,12 +172,7 @@ body.modal-sheet-open {
     @apply mx-auto w-full max-w-7xl space-y-6;
   }
 
-  .page-stack {
-    @apply flex flex-col gap-8 sm:gap-10 lg:gap-12;
-  }
-
   main.app-main-content {
-    padding-top: 1.5rem;
     padding-bottom: calc(10.5rem + env(safe-area-inset-bottom));
   }
 
@@ -195,6 +190,33 @@ body.modal-sheet-open {
     padding-top: env(safe-area-inset-top);
   }
 
+  .app-toolbar .mat-mdc-icon-button {
+    --mdc-icon-button-state-layer-size: 2.5rem;
+    width: 2.5rem;
+    height: 2.5rem;
+    min-height: 2.5rem;
+    padding: 0;
+  }
+
+  .app-toolbar .mat-mdc-icon-button .mat-icon {
+    margin: 0;
+    line-height: 1;
+  }
+
+  app-chart-bar,
+  app-chart-donut,
+  app-chart-card {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+
+    canvas {
+      display: block;
+      max-width: 100% !important;
+    }
+  }
+
   .app-drawer-content {
     padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
@@ -202,14 +224,12 @@ body.modal-sheet-open {
 
   @media (min-width: 640px) {
     main.app-main-content {
-      padding-top: 2rem;
       padding-bottom: calc(7.5rem + env(safe-area-inset-bottom));
     }
   }
 
   @media (min-width: 1024px) {
     main.app-main-content {
-      padding-top: 2.5rem;
       padding-bottom: 2rem;
     }
 

@@ -43,7 +43,7 @@ import { toLoadableSignal } from '../../core/utils/loadable-signal.util';
     ChartDonutComponent,
   ],
   template: `
-    <div class="page-stack">
+    <div class="flex flex-col gap-6">
       <header class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div class="page-header">
           <p class="kicker">{{ dateRange().label }}</p>
@@ -205,8 +205,8 @@ import { toLoadableSignal } from '../../core/utils/loadable-signal.util';
       </section>
 
       <section class="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-        <div class="panel p-5">
-          <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div class="panel min-w-0 overflow-hidden p-4 sm:p-5">
+          <div class="mb-3 flex flex-col gap-2 sm:mb-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p class="kicker">Trend</p>
               <h2 class="text-lg font-semibold tracking-[-0.02em] text-ink">Income, spending, and savings</h2>
@@ -216,8 +216,8 @@ import { toLoadableSignal } from '../../core/utils/loadable-signal.util';
           <app-chart-bar [labels]="incomeSeries().labels" [datasets]="monthlyOverviewDatasets()" />
         </div>
 
-        <div class="panel p-5">
-          <div class="mb-4 flex items-start justify-between gap-4">
+        <div class="panel min-w-0 p-4 sm:p-5">
+          <div class="mb-3 flex items-start justify-between gap-4 sm:mb-4">
             <div>
               <p class="kicker">Top spending</p>
               <h2 class="text-lg font-semibold tracking-[-0.02em] text-ink">Categories to watch</h2>
@@ -257,8 +257,8 @@ import { toLoadableSignal } from '../../core/utils/loadable-signal.util';
         </div>
       </section>
 
-      <section class="grid gap-4 xl:grid-cols-2">
-        <div class="panel space-y-4 p-5">
+      <section class="grid min-w-0 gap-4 xl:grid-cols-2">
+        <div class="panel min-w-0 space-y-3 overflow-hidden p-4 sm:space-y-4 sm:p-5">
           <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p class="kicker">Drill down</p>
@@ -290,10 +290,19 @@ import { toLoadableSignal } from '../../core/utils/loadable-signal.util';
             averageLabel="Monthly average"
             averageColor="#0F766E"
           />
-          <div class="grid gap-3 sm:grid-cols-3">
-            <div class="metric"><p class="kicker">Period total</p><p class="amount-lg mt-1">{{ drillSeries().total | currency }}</p></div>
-            <div class="metric"><p class="kicker">Monthly avg</p><p class="amount-lg mt-1">{{ drillSeries().average | currency }}</p></div>
-            <div class="metric"><p class="kicker">Budget</p><p class="amount-lg mt-1">{{ drillBudget() != null ? (drillBudget() | currency) : 'Not set' }}</p></div>
+          <div class="grid grid-cols-3 gap-2 sm:gap-3">
+            <div class="rounded-xl border border-line bg-surface-muted/50 px-2.5 py-2 sm:rounded-2xl sm:bg-surface sm:px-4 sm:py-3">
+              <p class="text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-muted sm:text-xs sm:tracking-[0.12em]">Period total</p>
+              <p class="money mt-0.5 text-sm font-semibold tabular-nums text-ink sm:mt-1 sm:text-xl">{{ drillSeries().total | currency }}</p>
+            </div>
+            <div class="rounded-xl border border-line bg-surface-muted/50 px-2.5 py-2 sm:rounded-2xl sm:bg-surface sm:px-4 sm:py-3">
+              <p class="text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-muted sm:text-xs sm:tracking-[0.12em]">Monthly avg</p>
+              <p class="money mt-0.5 text-sm font-semibold tabular-nums text-ink sm:mt-1 sm:text-xl">{{ drillSeries().average | currency }}</p>
+            </div>
+            <div class="rounded-xl border border-line bg-surface-muted/50 px-2.5 py-2 sm:rounded-2xl sm:bg-surface sm:px-4 sm:py-3">
+              <p class="text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-muted sm:text-xs sm:tracking-[0.12em]">Budget</p>
+              <p class="money mt-0.5 text-sm font-semibold tabular-nums text-ink sm:mt-1 sm:text-xl">{{ drillBudget() != null ? (drillBudget() | currency) : 'Not set' }}</p>
+            </div>
           </div>
         </div>
 

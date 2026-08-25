@@ -6,9 +6,6 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatListModule } from '@angular/material/list';
 import { MatMenuModule } from '@angular/material/menu';
-import { BreakpointObserver } from '@angular/cdk/layout';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { map } from 'rxjs';
 import { AccountService } from '../../core/services/account.service';
 import { AuthService } from '../../core/services/auth.service';
 import { CategoryService } from '../../core/services/category.service';
@@ -29,15 +26,7 @@ import { CategoryService } from '../../core/services/category.service';
   ],
   template: `
     <mat-sidenav-container class="min-h-screen bg-canvas">
-      <mat-sidenav
-        #drawer
-        [mode]="isDesktop() ? 'side' : 'over'"
-        [opened]="isDesktop()"
-        [disableClose]="isDesktop()"
-        class="!w-72"
-        [fixedInViewport]="!isDesktop()"
-        [autoFocus]="false"
-      >
+      <mat-sidenav #drawer mode="over" class="!w-72" fixedInViewport [autoFocus]="false">
         <div class="app-drawer-content flex h-full flex-col bg-surface">
           <div class="border-b border-line px-5 py-6">
             <p class="text-lg font-bold tracking-[-0.02em] text-ink">BudgetApp</p>
@@ -53,7 +42,7 @@ import { CategoryService } from '../../core/services/category.service';
                 routerLinkActive="active-nav"
                 [routerLinkActiveOptions]="{ exact: true }"
                 [attr.aria-current]="primaryNavActive.isActive ? 'page' : null"
-                (click)="closeDrawerOnMobile(drawer)"
+                (click)="drawer.close()"
               >
                 <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
                 <span matListItemTitle>{{ item.label }}</span>
@@ -71,7 +60,7 @@ import { CategoryService } from '../../core/services/category.service';
                 routerLinkActive="active-nav"
                 [routerLinkActiveOptions]="{ exact: true }"
                 [attr.aria-current]="secondaryNavActive.isActive ? 'page' : null"
-                (click)="closeDrawerOnMobile(drawer)"
+                (click)="drawer.close()"
               >
                 <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
                 <span matListItemTitle>{{ item.label }}</span>
@@ -87,16 +76,17 @@ import { CategoryService } from '../../core/services/category.service';
 
       <mat-sidenav-content class="min-h-screen bg-canvas">
         <mat-toolbar class="app-toolbar sticky top-0 z-20 !shadow-none">
-          <button
-            mat-icon-button
-            class="!h-11 !w-11 lg:!hidden"
-            (click)="drawer.toggle()"
-            aria-label="Open navigation"
-          >
-            <mat-icon>menu</mat-icon>
-          </button>
-          <span class="ml-2 text-base font-semibold tracking-[-0.02em]">BudgetApp</span>
-          <span class="flex-1"></span>
+          <div class="flex min-w-0 flex-1 items-center gap-1">
+            <button
+              mat-icon-button
+              class="!inline-flex !h-10 !w-10 !shrink-0 !items-center !justify-center"
+              (click)="drawer.toggle()"
+              aria-label="Open navigation"
+            >
+              <mat-icon>menu</mat-icon>
+            </button>
+            <span class="truncate text-base font-semibold leading-none tracking-[-0.02em]">BudgetApp</span>
+          </div>
           <button mat-flat-button color="primary" [matMenuTriggerFor]="quickAdd" class="!hidden sm:!inline-flex">
             <mat-icon>add</mat-icon>
             Add
@@ -159,13 +149,8 @@ import { CategoryService } from '../../core/services/category.service';
 })
 export class ShellComponent implements OnInit {
   readonly auth = inject(AuthService);
-  private readonly breakpointObserver = inject(BreakpointObserver);
   private readonly accountService = inject(AccountService);
   private readonly categoryService = inject(CategoryService);
-  readonly isDesktop = toSignal(
-    this.breakpointObserver.observe('(min-width: 1024px)').pipe(map((result) => result.matches)),
-    { initialValue: false },
-  );
 
   readonly primaryNav = [
     { path: '/dashboard', label: 'Home', icon: 'home' },
@@ -185,11 +170,5 @@ export class ShellComponent implements OnInit {
 
   signOut(): void {
     void this.auth.signOut();
-  }
-
-  closeDrawerOnMobile(drawer: { close: () => Promise<unknown> }): void {
-    if (!this.isDesktop()) {
-      void drawer.close();
-    }
   }
 }

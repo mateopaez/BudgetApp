@@ -74,7 +74,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
     ModalSheetComponent,
   ],
   template: `
-    <div class="calendar-page page-stack">
+    <div class="calendar-page flex flex-col gap-6">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div class="page-header">
           <h1 class="page-title">Plan</h1>

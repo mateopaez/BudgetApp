@@ -79,7 +79,7 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
     ModalSheetComponent,
   ],
   template: `
-    <div class="page-stack">
+    <div class="flex flex-col gap-6">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div class="page-header">
           <h1 class="page-title">Activity</h1>
@@ -93,7 +93,7 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
                 class="rounded-full bg-finance-warningSoft px-2 py-0.5 text-xs font-semibold text-finance-warning hover:bg-finance-warningSoft"
                 (click)="showInbox()"
               >
-                Review {{ inboxCount() }} uncategorized in selected period
+                Review {{ inboxCount() }} uncategorized
               </button>
             }
           </p>
@@ -451,22 +451,22 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
         </mat-card>
       }
 
-      <button
-        mat-stroked-button
-        type="button"
-        class="!flex !min-h-11 !w-full !items-center !justify-between sm:!hidden"
-        (click)="mobileFiltersOpen.set(true)"
-        [attr.aria-label]="'Open filters. ' + filterSummary()"
-      >
-        <span class="flex items-center gap-2">
+      <div class="flex items-center gap-3 sm:hidden">
+        <button
+          mat-stroked-button
+          type="button"
+          class="!inline-flex !min-h-11 !w-auto !shrink-0 !items-center !gap-2"
+          (click)="mobileFiltersOpen.set(true)"
+          [attr.aria-label]="'Open filters. ' + filterSummary()"
+        >
           <mat-icon>tune</mat-icon>
           Filters
           @if (activeFilterCount() > 0) {
             <span class="rounded-full bg-action px-2 py-0.5 text-xs text-white">{{ activeFilterCount() }}</span>
           }
-        </span>
-        <span class="max-w-[55%] truncate text-sm font-normal text-ink-muted">{{ filterSummary() }}</span>
-      </button>
+        </button>
+        <p class="min-w-0 truncate text-sm text-ink-muted">{{ filterSummary() }}</p>
+      </div>
 
       <div class="app-card hidden p-4 sm:block" [formGroup]="filters">
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

@@ -53,7 +53,7 @@ interface TrackedCategoryBudgetRow extends CategoryBudgetRow {
   ],
   providers: [CurrencyPipe],
   template: `
-    <div class="page-stack">
+    <div class="flex flex-col gap-6">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div class="page-header">
           <h1 class="page-title">Budgets</h1>

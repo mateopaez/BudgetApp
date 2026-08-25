@@ -11,7 +11,7 @@ const STORAGE_KEY = 'budget-app-project-ideas-completed';
   standalone: true,
   imports: [MatCardModule, MatCheckboxModule, MatProgressBarModule],
   template: `
-    <div class="page-stack">
+    <div class="flex flex-col gap-6">
       <div class="page-header">
         <h1 class="page-title">Internal project ideas</h1>
         <p class="page-subtitle">

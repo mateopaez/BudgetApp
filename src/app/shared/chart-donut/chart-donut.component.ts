@@ -27,42 +27,20 @@ const PALETTE_VARIABLES = [
 @Component({
   selector: 'app-chart-donut',
   standalone: true,
-  host: { class: 'block' },
+  host: { class: 'block w-full min-w-0 max-w-full' },
   template: `
-    <div class="panel p-5">
-      <h3 class="kicker mb-4">{{ title() }}</h3>
-      <div class="mx-auto h-64 max-w-sm" [class.hidden]="labels().length === 0">
+    <div class="panel w-full min-w-0 max-w-full overflow-hidden p-4 sm:p-5">
+      <h3 class="kicker mb-3 sm:mb-4">{{ title() }}</h3>
+      <div
+        class="relative mx-auto h-64 w-full min-w-0 max-w-sm overflow-hidden"
+        [class.hidden]="labels().length === 0"
+      >
         <canvas #canvas aria-hidden="true"></canvas>
       </div>
       @if (labels().length === 0) {
         <div class="grid min-h-24 place-items-center rounded-2xl border border-dashed border-line bg-surface-muted px-4 text-center">
           <p class="text-sm text-ink-muted">No spending breakdown for this period yet.</p>
         </div>
-      } @else {
-        <details class="mt-3 rounded-xl border border-line bg-surface px-3 py-2 text-sm">
-          <summary class="min-h-11 cursor-pointer py-2 font-semibold text-action">View {{ title().toLowerCase() }} data</summary>
-          <ul class="m-0 list-none divide-y divide-line p-0">
-            @for (label of labels(); track $index; let rowIndex = $index) {
-              <li>
-                @if (categoryIds()[rowIndex]) {
-                  <button
-                    type="button"
-                    class="flex min-h-11 w-full items-center justify-between gap-3 py-2 text-left"
-                    (click)="categoryClick.emit(categoryIds()[rowIndex])"
-                  >
-                    <span>{{ label }}</span>
-                    <span class="money font-semibold">{{ formatValue(data()[rowIndex]) }}</span>
-                  </button>
-                } @else {
-                  <div class="flex min-h-11 items-center justify-between gap-3 py-2">
-                    <span>{{ label }}</span>
-                    <span class="money font-semibold">{{ formatValue(data()[rowIndex]) }}</span>
-                  </div>
-                }
-              </li>
-            }
-          </ul>
-        </details>
       }
     </div>
   `,
@@ -76,14 +54,6 @@ export class ChartDonutComponent implements AfterViewInit, OnDestroy {
 
   private readonly canvasRef = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
   private chart?: Chart;
-
-  formatValue(value: number | undefined): string {
-    return new Intl.NumberFormat(undefined, {
-      style: 'currency',
-      currency: 'USD',
-      maximumFractionDigits: 2,
-    }).format(value ?? 0);
-  }
 
   constructor() {
     effect(() => {
@@ -149,6 +119,9 @@ export class ChartDonutComponent implements AfterViewInit, OnDestroy {
     this.chart.data.datasets[0].backgroundColor = labels.map((_, i) =>
       chartCssVariable(canvas, PALETTE_VARIABLES[i % PALETTE_VARIABLES.length], '#0F766E')
     );
+    if (labels.length) {
+      this.chart.resize();
+    }
     this.chart.update();
   }
 }

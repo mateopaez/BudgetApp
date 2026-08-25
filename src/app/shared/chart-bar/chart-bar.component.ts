@@ -15,49 +15,18 @@ Chart.register(...registerables);
 @Component({
   selector: 'app-chart-bar',
   standalone: true,
-  host: { class: 'block' },
+  host: { class: 'block w-full min-w-0 max-w-full' },
   template: `
-    <div class="h-52" [class.hidden]="labels().length === 0">
+    <div
+      class="relative h-52 w-full min-w-0 max-w-full overflow-hidden"
+      [class.hidden]="labels().length === 0"
+    >
       <canvas #canvas aria-hidden="true"></canvas>
     </div>
     @if (labels().length === 0) {
       <div class="grid min-h-24 place-items-center rounded-2xl border border-dashed border-line bg-surface-muted px-4 text-center">
         <p class="text-sm text-ink-muted">No activity in this period yet.</p>
       </div>
-    } @else {
-      <details class="mt-3 rounded-xl border border-line bg-surface px-3 py-2 text-sm">
-        <summary class="min-h-11 cursor-pointer py-2 font-semibold text-action">View chart data</summary>
-        <div class="overflow-x-auto">
-          <table class="w-full text-left">
-            <thead>
-              <tr class="border-b border-line">
-                <th class="py-2 pr-4">Period</th>
-                @if (datasets().length) {
-                  @for (series of datasets(); track series.label) {
-                    <th class="py-2 pr-4">{{ series.label }}</th>
-                  }
-                } @else {
-                  <th class="py-2 pr-4">Amount</th>
-                }
-              </tr>
-            </thead>
-            <tbody>
-              @for (label of labels(); track $index; let rowIndex = $index) {
-                <tr class="border-b border-line/60">
-                  <th class="py-2 pr-4 font-medium">{{ label }}</th>
-                  @if (datasets().length) {
-                    @for (series of datasets(); track series.label) {
-                      <td class="money py-2 pr-4">{{ formatValue(series.data[rowIndex]) }}</td>
-                    }
-                  } @else {
-                    <td class="money py-2 pr-4">{{ formatValue(data()[rowIndex]) }}</td>
-                  }
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-      </details>
     }
   `,
 })
@@ -74,14 +43,6 @@ export class ChartBarComponent implements AfterViewInit, OnDestroy {
 
   private readonly canvasRef = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
   private chart?: Chart;
-
-  formatValue(value: number | undefined): string {
-    return new Intl.NumberFormat(undefined, {
-      style: 'currency',
-      currency: 'USD',
-      maximumFractionDigits: 2,
-    }).format(value ?? 0);
-  }
 
   constructor() {
     effect(() => {
@@ -124,7 +85,12 @@ export class ChartBarComponent implements AfterViewInit, OnDestroy {
         scales: {
           x: {
             grid: { display: false },
-            ticks: { color: labelColor, font: { size: 11 } },
+            ticks: {
+              color: labelColor,
+              font: { size: 11 },
+              maxRotation: 0,
+              autoSkip: true,
+            },
           },
           y: {
             beginAtZero: true,
@@ -186,6 +152,9 @@ export class ChartBarComponent implements AfterViewInit, OnDestroy {
     const showLegend = multi.length > 0 || avg != null;
     if (this.chart.options.plugins?.legend) {
       this.chart.options.plugins.legend.display = showLegend;
+    }
+    if (labels.length) {
+      this.chart.resize();
     }
     this.chart.update();
   }
