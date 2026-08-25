@@ -1,6 +1,6 @@
-import { CurrencyPipe, DatePipe } from '@angular/common';
+import { CurrencyPipe, DatePipe, DOCUMENT } from '@angular/common';
 import { Component, computed, effect, inject, OnInit, signal } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -15,6 +15,8 @@ import { MatTableModule } from '@angular/material/table';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatMenuModule } from '@angular/material/menu';
+import { fromEvent, merge } from 'rxjs';
 import { Category, ParsedImportRow, Transaction } from '../../core/models';
 import { AccountService } from '../../core/services/account.service';
 import { CategoryService } from '../../core/services/category.service';
@@ -26,6 +28,10 @@ import { TransactionService } from '../../core/services/transaction.service';
 import { computeAccountBalance } from '../../core/utils/balance.util';
 import { countUncategorizedExpenses } from '../../core/utils/budget.util';
 import { DateRangePreset, formatDateParam, parseDateParam, resolveDateRange } from '../../core/utils/date.util';
+import {
+  clearOneShotQueryParams,
+  OneShotQueryParam,
+} from '../../core/utils/one-shot-query.util';
 import {
   computeNetActivity,
   computeTransactionSummary,
@@ -41,6 +47,8 @@ import {
 } from './transaction-form-dialog.component';
 import { ImportMapperComponent } from './import-mapper.component';
 import { confirmDialog } from '../../shared/confirm-dialog/confirm-dialog.component';
+import { ModalSheetComponent } from '../../shared/modal-sheet/modal-sheet.component';
+import { toLoadableSignal } from '../../core/utils/loadable-signal.util';
 
 type ImportStep = 'upload' | 'map' | 'review';
 type ImportReviewFilter = 'all' | 'ready' | 'duplicates';
@@ -66,15 +74,18 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
     MatTableModule,
     MatDatepickerModule,
     MatSnackBarModule,
+    MatMenuModule,
     ImportMapperComponent,
+    ModalSheetComponent,
   ],
   template: `
-    <div class="space-y-6">
+    <div class="page-stack">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div class="page-header">
           <h1 class="page-title">Activity</h1>
           <p class="page-subtitle">
-            Review, categorize, and import money activity · {{ transactions().length }} shown · {{ dateRange().label }}
+            Review, categorize, and import money activity ·
+            {{ initialLoading() ? 'loading activity…' : transactions().length + ' shown · ' + dateRange().label }}
             @if (inboxCount() > 0) {
               ·
               <button
@@ -82,7 +93,7 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
                 class="rounded-full bg-finance-warningSoft px-2 py-0.5 text-xs font-semibold text-finance-warning hover:bg-finance-warningSoft"
                 (click)="showInbox()"
               >
-                Review {{ inboxCount() }}
+                Review {{ inboxCount() }} uncategorized in selected period
               </button>
             }
           </p>
@@ -90,8 +101,9 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
         <div class="flex shrink-0 flex-wrap gap-2 self-start">
           <button
             mat-stroked-button
+            class="!hidden sm:!inline-flex"
             (click)="toggleImport()"
-            [disabled]="clearing() || importing()"
+            [disabled]="initialLoading() || clearing() || importing()"
           >
             <mat-icon>upload_file</mat-icon>
             Import CSV
@@ -101,7 +113,7 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
             color="warn"
             type="button"
             (click)="clearAllTransactions()"
-            [disabled]="transactionCount() === 0 || clearing() || importing()"
+            [disabled]="initialLoading() || transactionCount() === 0 || clearing() || importing()"
           >
             <mat-icon>delete_sweep</mat-icon>
             {{ clearing() ? 'Clearing…' : 'Clear all' }}
@@ -109,8 +121,9 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
           <button
             mat-flat-button
             color="primary"
+            class="!hidden sm:!inline-flex"
             (click)="openAdd()"
-            [disabled]="clearing() || importing()"
+            [disabled]="initialLoading() || clearing() || importing()"
           >
             <mat-icon>add</mat-icon>
             Add transaction
@@ -118,14 +131,24 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
         </div>
       </div>
 
+      @if (initialLoading()) {
+        <section class="panel animate-pulse p-6" role="status" aria-live="polite">
+          <p class="font-semibold text-ink">Loading activity…</p>
+          <p class="mt-1 text-sm text-ink-muted">Waiting for transactions, accounts, and categories.</p>
+        </section>
+      }
+      @if (loadError()) {
+        <p class="rounded-2xl border border-finance-expense/20 bg-finance-expenseSoft p-4 text-sm text-finance-expense" role="alert">{{ loadError() }}</p>
+      }
+      <div class="contents" [class.hidden]="initialLoading()">
       @if (clearing()) {
-        <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4" role="status" aria-live="polite">
+        <div class="rounded-2xl border border-finance-warningSoft bg-finance-warningSoft p-4" role="status" aria-live="polite">
           <div class="mb-2 flex items-center justify-between gap-3">
             <div>
-              <p class="font-semibold text-amber-900">Clearing transactions…</p>
-              <p class="mt-1 text-sm text-amber-800">{{ clearProgress().message }}</p>
+              <p class="font-semibold text-finance-warning">Clearing transactions…</p>
+              <p class="mt-1 text-sm text-finance-warning">{{ clearProgress().message }}</p>
             </div>
-            <span class="text-sm font-semibold text-amber-900">{{ clearProgress().progress }}%</span>
+            <span class="text-sm font-semibold text-finance-warning">{{ clearProgress().progress }}%</span>
           </div>
           <mat-progress-bar mode="determinate" [value]="clearProgress().progress" color="warn" aria-label="Clear transactions progress" [attr.aria-valuetext]="clearProgress().message" />
         </div>
@@ -150,6 +173,20 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
                 <mat-icon>close</mat-icon>
               </button>
             </div>
+
+            @if (!isOnline()) {
+              <div
+                class="rounded-2xl border-2 border-finance-warning bg-finance-warningSoft p-4 text-finance-warning"
+                role="alert"
+                aria-live="polite"
+              >
+                <p class="font-semibold">You are offline</p>
+                <p class="mt-1 text-sm">
+                  Duplicate checks may not include transactions saved on other devices. Re-importing
+                  now can create duplicates. Reconnect before importing whenever possible.
+                </p>
+              </div>
+            }
 
             @if (parsing() || importing()) {
               <div
@@ -239,9 +276,9 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
                   />
                   <button mat-button type="button" (click)="resetImportFile()">Choose a different file</button>
                 } @else {
-                  <div class="rounded-2xl border border-amber-100 bg-amber-50 p-4">
-                    <p class="font-semibold text-amber-800">We couldn't find column headers in this CSV.</p>
-                    <p class="mt-1 text-sm text-amber-700">
+                  <div class="rounded-2xl border border-finance-warningSoft bg-finance-warningSoft p-4">
+                    <p class="font-semibold text-finance-warning">We couldn't find column headers in this CSV.</p>
+                    <p class="mt-1 text-sm text-finance-warning">
                       Make sure the first row contains labels like Date, Description, and Amount, then upload again.
                     </p>
                     <button mat-stroked-button type="button" class="!mt-3" (click)="resetImportFile()">
@@ -267,7 +304,7 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
                     </div>
                     <div class="metric">
                       <p class="kicker">Duplicates skipped</p>
-                      <p class="money mt-1 text-2xl font-semibold text-amber-700">{{ importDuplicateCount() }}</p>
+                      <p class="money mt-1 text-2xl font-semibold text-finance-warning">{{ importDuplicateCount() }}</p>
                     </div>
                   </div>
 
@@ -281,7 +318,7 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
                     >
                       Import {{ importNewCount() }} new transactions
                     </button>
-                    <p class="text-sm text-slate-500">
+                    <p class="text-sm text-slate-500" role="status" aria-live="polite">
                       {{ importDuplicateCount() }} duplicates will be skipped automatically.
                     </p>
                   </div>
@@ -330,13 +367,13 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
                               {{ row.postedAt | date: 'mediumDate' }} · {{ row.kind }}
                             </p>
                           </div>
-                          <p class="money shrink-0 font-semibold" [class]="row.amount < 0 ? 'text-red-600' : 'text-action'">
+                          <p class="money shrink-0 font-semibold" [class]="row.amount < 0 ? 'text-finance-expense' : 'text-action'">
                             {{ row.amount | currency }}
                           </p>
                         </div>
                         <p
                           class="mt-3 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
-                          [class]="row.isDuplicate ? 'bg-amber-100 text-amber-800' : 'bg-action-soft text-action'"
+                          [class]="row.isDuplicate ? 'bg-finance-warningSoft text-finance-warning' : 'bg-action-soft text-action'"
                         >
                           {{ row.isDuplicate ? 'Already imported — will skip' : 'Ready to import' }}
                         </p>
@@ -367,7 +404,7 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
                         <td mat-cell *matCellDef="let row">
                           <span
                             class="font-medium"
-                            [class]="row.isDuplicate ? 'text-amber-600' : 'text-action'"
+                            [class]="row.isDuplicate ? 'text-finance-warning' : 'text-action'"
                           >
                             {{ row.isDuplicate ? 'Already imported — will skip' : 'Ready to import' }}
                           </span>
@@ -405,8 +442,8 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
               }
 
               @if (importStatus() && importStep() === 'upload') {
-                <div class="rounded-2xl border border-red-100 bg-red-50 p-4">
-                  <p class="font-semibold text-red-800">{{ importStatus() }}</p>
+                <div class="rounded-2xl border border-finance-expenseSoft bg-finance-expenseSoft p-4">
+                  <p class="font-semibold text-finance-expense">{{ importStatus() }}</p>
                 </div>
               }
             }
@@ -414,7 +451,24 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
         </mat-card>
       }
 
-      <div class="app-card p-4" [formGroup]="filters">
+      <button
+        mat-stroked-button
+        type="button"
+        class="!flex !min-h-11 !w-full !items-center !justify-between sm:!hidden"
+        (click)="mobileFiltersOpen.set(true)"
+        [attr.aria-label]="'Open filters. ' + filterSummary()"
+      >
+        <span class="flex items-center gap-2">
+          <mat-icon>tune</mat-icon>
+          Filters
+          @if (activeFilterCount() > 0) {
+            <span class="rounded-full bg-action px-2 py-0.5 text-xs text-white">{{ activeFilterCount() }}</span>
+          }
+        </span>
+        <span class="max-w-[55%] truncate text-sm font-normal text-ink-muted">{{ filterSummary() }}</span>
+      </button>
+
+      <div class="app-card hidden p-4 sm:block" [formGroup]="filters">
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <mat-form-field class="sm:col-span-2 lg:col-span-4">
             <mat-label>Search merchant or notes</mat-label>
@@ -499,38 +553,38 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
       </div>
 
       <div class="flex flex-wrap gap-3">
-        <div class="rounded-xl border border-red-100 bg-red-50 px-4 py-3">
-          <p class="text-xs font-medium uppercase tracking-wide text-red-700">Expenses</p>
-          <p class="text-lg font-semibold text-red-600">{{ summary().expenses | currency }}</p>
+        <div class="rounded-xl border border-finance-expenseSoft bg-finance-expenseSoft px-4 py-3">
+          <p class="text-xs font-medium uppercase tracking-wide text-finance-expense">Expenses</p>
+          <p class="text-lg font-semibold text-finance-expense">{{ summary().expenses | currency }}</p>
         </div>
         <div class="rounded-xl border border-line bg-action-soft px-4 py-3">
           <p class="text-xs font-medium uppercase tracking-wide text-action">Income</p>
           <p class="text-lg font-semibold text-action">{{ summary().income | currency }}</p>
         </div>
-        <div class="rounded-xl border border-slate-200 bg-white px-4 py-3">
-          <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Net (in range)</p>
+        <div class="rounded-xl border border-line bg-surface px-4 py-3">
+          <p class="text-xs font-medium uppercase tracking-wide text-ink-muted">Net (in range)</p>
           <p
             class="text-lg font-semibold"
-            [class]="summary().net < 0 ? 'text-red-600' : summary().net > 0 ? 'text-action' : 'text-slate-600'"
+            [class]="summary().net < 0 ? 'text-finance-expense' : summary().net > 0 ? 'text-action' : 'text-ink-muted'"
           >
             {{ summary().net | currency }}
           </p>
         </div>
         @if (selectedAccountBalance() !== null) {
-          <div class="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3">
-            <p class="text-xs font-medium uppercase tracking-wide text-emerald-700">Balance today</p>
+          <div class="rounded-xl border border-finance-incomeSoft bg-finance-incomeSoft px-4 py-3">
+            <p class="text-xs font-medium uppercase tracking-wide text-finance-income">Balance today</p>
             <p
               class="text-lg font-semibold"
-              [class]="selectedAccountBalance()! < 0 ? 'text-red-600' : 'text-emerald-700'"
+              [class]="selectedAccountBalance()! < 0 ? 'text-finance-expense' : 'text-finance-income'"
             >
               {{ selectedAccountBalance()! | currency }}
             </p>
           </div>
-          <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-            <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Activity in range</p>
+          <div class="rounded-xl border border-line bg-surface-muted px-4 py-3">
+            <p class="text-xs font-medium uppercase tracking-wide text-ink-muted">Activity in range</p>
             <p
               class="text-lg font-semibold"
-              [class]="filteredNetActivity() < 0 ? 'text-red-600' : filteredNetActivity() > 0 ? 'text-action' : 'text-slate-600'"
+              [class]="filteredNetActivity() < 0 ? 'text-finance-expense' : filteredNetActivity() > 0 ? 'text-action' : 'text-ink-muted'"
             >
               {{ filteredNetActivity() | currency }}
             </p>
@@ -541,7 +595,7 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
       <div class="list-shell">
         @if (transactions().length) {
           <div class="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
-            <p class="text-sm text-slate-500">
+            <p class="text-sm text-slate-500" role="status" aria-live="polite">
               Showing {{ listRangeLabel() }} of {{ transactions().length }}
             </p>
             <div class="flex gap-2">
@@ -568,7 +622,7 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
         @for (tx of pagedTransactions(); track tx.id) {
           <div
             class="list-row transition-colors hover:bg-action-soft/30"
-            [class.bg-amber-50]="isInbox(tx)"
+            [class.bg-finance-warningSoft]="isInbox(tx)"
           >
             <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_15rem_7rem_auto] lg:items-center">
               <div class="min-w-0">
@@ -605,7 +659,7 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
                       <div class="flex min-w-0 items-center gap-2">
                         <p class="min-w-0 truncate font-semibold text-ink">{{ tx.merchant }}</p>
                         @if (isInbox(tx)) {
-                          <span class="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                          <span class="shrink-0 rounded-full bg-finance-warningSoft px-2 py-0.5 text-xs font-medium text-finance-warning">
                             Review
                           </span>
                         }
@@ -627,25 +681,36 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
 
               <div class="lg:justify-self-stretch">
                 @if (tx.kind === 'expense' || tx.kind === 'income') {
-                  <mat-form-field class="compact-field">
+                  <button
+                    mat-stroked-button
+                    type="button"
+                    class="!flex !min-h-11 !w-full !justify-between sm:!hidden"
+                    (click)="openMobileCategory(tx)"
+                    [disabled]="isCategoryPending(tx.id)"
+                    [attr.aria-label]="'Categorize ' + tx.merchant + '. Current category: ' + transactionCategoryName(tx)"
+                  >
+                    <span class="truncate">{{ isCategoryPending(tx.id) ? 'Saving…' : transactionCategoryName(tx) }}</span>
+                    <mat-icon>sell</mat-icon>
+                  </button>
+                  <mat-form-field class="compact-field !hidden sm:!block">
                     <mat-label>Category</mat-label>
                     <mat-select
                       [value]="categoryValue(tx)"
                       [compareWith]="compareIds"
                       (selectionChange)="updateCategory(tx.id, $event.value)"
-                      [disabled]="!!pendingCategoryFor(tx.id)"
+                      [disabled]="isCategoryPending(tx.id)"
                     >
                       <mat-option [value]="null">Uncategorized</mat-option>
                       @for (c of selectableCategories(tx); track c.id) {
                         <mat-option [value]="c.id">{{ c.name }}</mat-option>
                       }
                     </mat-select>
-                    @if (pendingCategoryFor(tx.id)) {
+                    @if (isCategoryPending(tx.id)) {
                       <mat-hint>Saving…</mat-hint>
                     }
                   </mat-form-field>
                 } @else {
-                  <span class="inline-flex min-h-11 items-center rounded-xl border border-line bg-slate-50 px-3 text-sm text-ink-muted">
+                  <span class="inline-flex min-h-11 items-center rounded-xl border border-line bg-surface-muted px-3 text-sm text-ink-muted">
                     No category
                   </span>
                 }
@@ -655,7 +720,7 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
                 {{ tx.amount | currency }}
               </p>
 
-              <div class="flex items-center gap-1 lg:justify-end">
+              <div class="hidden items-center gap-1 sm:flex lg:justify-end">
                 @if (editingId() !== tx.id) {
                   <button mat-icon-button (click)="startEditMerchant(tx)" [attr.aria-label]="'Rename ' + tx.merchant">
                     <mat-icon>drive_file_rename_outline</mat-icon>
@@ -672,6 +737,38 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
                 <button mat-icon-button color="warn" (click)="remove(tx.id)" [attr.aria-label]="'Delete ' + tx.merchant">
                   <mat-icon>delete</mat-icon>
                 </button>
+              </div>
+              <div class="flex justify-end sm:hidden">
+                <button
+                  mat-icon-button
+                  type="button"
+                  [matMenuTriggerFor]="transactionMenu"
+                  [attr.aria-label]="'More actions for ' + tx.merchant"
+                >
+                  <mat-icon>more_vert</mat-icon>
+                </button>
+                <mat-menu #transactionMenu="matMenu">
+                  @if (editingId() !== tx.id) {
+                    <button mat-menu-item type="button" (click)="startEditMerchant(tx)">
+                      <mat-icon>drive_file_rename_outline</mat-icon>
+                      <span>Rename</span>
+                    </button>
+                  }
+                  <button mat-menu-item type="button" (click)="openEdit(tx)">
+                    <mat-icon>edit</mat-icon>
+                    <span>Edit details</span>
+                  </button>
+                  @if (tx.kind === 'expense') {
+                    <button mat-menu-item type="button" (click)="openSplit(tx)">
+                      <mat-icon>call_split</mat-icon>
+                      <span>Split transaction</span>
+                    </button>
+                  }
+                  <button mat-menu-item type="button" (click)="remove(tx.id)">
+                    <mat-icon color="warn">delete</mat-icon>
+                    <span>Delete</span>
+                  </button>
+                </mat-menu>
               </div>
             </div>
           </div>
@@ -721,7 +818,123 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
           </div>
         }
       </div>
+      </div>
     </div>
+
+    @if (mobileFiltersOpen()) {
+      <app-modal-sheet
+        title="Filters"
+        [subtitle]="filterSummary()"
+        ariaLabel="Activity filters"
+        (closed)="mobileFiltersOpen.set(false)"
+      >
+        <form id="mobile-filter-form" class="grid gap-3" [formGroup]="filters">
+          <mat-form-field>
+            <mat-label>Search merchant or notes</mat-label>
+            <input matInput formControlName="search" placeholder="e.g. Costco, rent, payroll" />
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>Account</mat-label>
+            <mat-select formControlName="accountId">
+              <mat-option value="">All accounts</mat-option>
+              @for (a of accounts(); track a.id) {
+                <mat-option [value]="a.id">{{ a.name }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>Date range</mat-label>
+            <mat-select formControlName="period">
+              <mat-option value="all">All time</mat-option>
+              <mat-option value="this_month">This month</mat-option>
+              <mat-option value="last_30_days">Last 30 days</mat-option>
+              <mat-option value="last_3_months">Last 3 months</mat-option>
+              <mat-option value="ytd">Year to date</mat-option>
+              <mat-option value="custom">Custom range</mat-option>
+            </mat-select>
+          </mat-form-field>
+          @if (filters.get('period')?.value === 'custom') {
+            <mat-form-field>
+              <mat-label>Custom range</mat-label>
+              <mat-date-range-input [rangePicker]="mobileRangePicker">
+                <input matStartDate formControlName="from" placeholder="Start" />
+                <input matEndDate formControlName="to" placeholder="End" />
+              </mat-date-range-input>
+              <mat-datepicker-toggle matIconSuffix [for]="mobileRangePicker" />
+              <mat-date-range-picker #mobileRangePicker />
+            </mat-form-field>
+          }
+          <mat-form-field>
+            <mat-label>Kind</mat-label>
+            <mat-select formControlName="kind">
+              <mat-option value="all">All kinds</mat-option>
+              <mat-option value="expense">Expenses</mat-option>
+              <mat-option value="income">Income</mat-option>
+              <mat-option value="transfer">Transfers</mat-option>
+              <mat-option value="cc_payment">CC payments</mat-option>
+              <mat-option value="refund">Refunds</mat-option>
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>Category</mat-label>
+            <mat-select formControlName="categoryId">
+              <mat-option value="">All categories</mat-option>
+              <mat-option value="uncategorized">Uncategorized (inbox)</mat-option>
+              @for (c of userCategories(); track c.id) {
+                <mat-option [value]="c.id">{{ c.name }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>Sort by</mat-label>
+            <mat-select formControlName="sort">
+              <mat-option value="date_desc">Date (newest first)</mat-option>
+              <mat-option value="date_asc">Date (oldest first)</mat-option>
+              <mat-option value="kind_then_date_desc">Kind, then date</mat-option>
+              <mat-option value="amount_desc">Amount (high to low)</mat-option>
+              <mat-option value="amount_asc">Amount (low to high)</mat-option>
+              <mat-option value="merchant_asc">Merchant (A–Z)</mat-option>
+            </mat-select>
+          </mat-form-field>
+          <mat-slide-toggle formControlName="hideCcAndRefunds">Hide CC payments &amp; refunds</mat-slide-toggle>
+        </form>
+        <button modalActions mat-button type="button" (click)="clearFilters()">Reset</button>
+        <button modalActions mat-flat-button color="primary" type="button" (click)="mobileFiltersOpen.set(false)">Show results</button>
+      </app-modal-sheet>
+    }
+
+    @if (mobileCategoryTransaction(); as tx) {
+      <app-modal-sheet
+        title="Choose category"
+        [subtitle]="tx.merchant"
+        [ariaLabel]="'Categorize ' + tx.merchant"
+        (closed)="mobileCategoryTransaction.set(null)"
+      >
+        <div class="grid gap-2">
+          <button
+            mat-stroked-button
+            type="button"
+            class="!min-h-11 !justify-start"
+            [color]="categoryValue(tx) === null ? 'primary' : undefined"
+            (click)="chooseMobileCategory(tx, null)"
+          >
+            Uncategorized
+          </button>
+          @for (category of selectableCategories(tx); track category.id) {
+            <button
+              mat-stroked-button
+              type="button"
+              class="!min-h-11 !justify-start"
+              [color]="categoryValue(tx) === category.id ? 'primary' : undefined"
+              (click)="chooseMobileCategory(tx, category.id)"
+            >
+              {{ category.name }}
+            </button>
+          }
+        </div>
+        <button modalActions mat-button type="button" (click)="mobileCategoryTransaction.set(null)">Cancel</button>
+      </app-modal-sheet>
+    }
   `,
 })
 export class TransactionsComponent implements OnInit {
@@ -737,12 +950,30 @@ export class TransactionsComponent implements OnInit {
   private readonly snack = inject(MatSnackBar);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly window = inject(DOCUMENT).defaultView;
+  readonly isOnline = signal(this.window?.navigator.onLine ?? true);
 
-  readonly accounts = toSignal(this.accountService.watchAccounts(), { initialValue: [] });
-  readonly categories = toSignal(this.categoryService.watchCategories(), { initialValue: [] });
-  private readonly allTransactions = toSignal(this.transactionService.watchAllTransactions(), {
-    initialValue: [],
-  });
+  private readonly accountState = toLoadableSignal(this.accountService.watchAccounts(), []);
+  private readonly categoryState = toLoadableSignal(this.categoryService.watchCategories(), []);
+  private readonly transactionState = toLoadableSignal(
+    this.transactionService.watchAllTransactions(),
+    []
+  );
+  readonly accounts = this.accountState.value;
+  readonly categories = this.categoryState.value;
+  private readonly allTransactions = this.transactionState.value;
+  readonly initialLoading = computed(
+    () =>
+      this.accountState.loading() ||
+      this.categoryState.loading() ||
+      this.transactionState.loading()
+  );
+  readonly loadError = computed(
+    () =>
+      this.accountState.error() ??
+      this.categoryState.error() ??
+      this.transactionState.error()
+  );
   readonly transactionCount = computed(() => this.allTransactions().length);
 
   readonly importColumns = ['postedAt', 'merchant', 'amount', 'kind', 'status'];
@@ -841,6 +1072,8 @@ export class TransactionsComponent implements OnInit {
   readonly editingId = signal<string | null>(null);
   readonly editMerchant = signal('');
   private readonly pendingCategories = signal<Record<string, string | null>>({});
+  readonly mobileFiltersOpen = signal(false);
+  readonly mobileCategoryTransaction = signal<Transaction | null>(null);
 
   readonly filters = this.fb.group({
     search: this.fb.nonNullable.control(''),
@@ -859,6 +1092,31 @@ export class TransactionsComponent implements OnInit {
   });
 
   readonly userCategories = computed(() => this.categories().filter((c) => !c.isSystem));
+  readonly activeFilterCount = computed(() => {
+    const f = this.filterValues();
+    return [
+      !!(f.search ?? '').trim(),
+      !!f.accountId,
+      f.period !== 'all',
+      f.kind !== 'all',
+      !!f.categoryId,
+      !!f.hideCcAndRefunds,
+      f.sort !== 'date_desc',
+    ].filter(Boolean).length;
+  });
+  readonly filterSummary = computed(() => {
+    const f = this.filterValues();
+    const parts = [this.dateRange().label];
+    if (f.accountId) parts.push(this.accountName(f.accountId));
+    if (f.kind && f.kind !== 'all') parts.push(f.kind.replace('_', ' '));
+    if (f.categoryId === 'uncategorized') {
+      parts.push('Uncategorized');
+    } else if (f.categoryId) {
+      parts.push(this.categoryName(f.categoryId));
+    }
+    if ((f.search ?? '').trim()) parts.push(`“${f.search!.trim()}”`);
+    return parts.join(' · ');
+  });
 
   readonly dateRange = computed(() => {
     const f = this.filterValues();
@@ -908,6 +1166,12 @@ export class TransactionsComponent implements OnInit {
   });
 
   constructor() {
+    if (this.window) {
+      merge(fromEvent(this.window, 'online'), fromEvent(this.window, 'offline'))
+        .pipe(takeUntilDestroyed())
+        .subscribe(() => this.isOnline.set(this.window?.navigator.onLine ?? true));
+    }
+
     effect(() => {
       this.filterValues();
       this.listPage.set(0);
@@ -945,14 +1209,6 @@ export class TransactionsComponent implements OnInit {
     const period = (q.get('period') as DateRangePreset | null) ?? 'all';
     const kind = (q.get('kind') as KindFilter | null) ?? 'all';
 
-    if (q.get('import') === '1') {
-      this.showImport.set(true);
-      this.prefillImportAccount();
-    }
-    if (q.get('action') === 'add') {
-      queueMicrotask(() => this.openAdd());
-    }
-
     this.filters.patchValue(
       {
         search: q.get('search') ?? '',
@@ -967,6 +1223,22 @@ export class TransactionsComponent implements OnInit {
       },
       { emitEvent: true }
     );
+
+    this.route.queryParamMap.subscribe((params) => {
+      const handledOneShotParams: OneShotQueryParam[] = [];
+      if (params.get('import') === '1') {
+        this.showImport.set(true);
+        this.prefillImportAccount();
+        handledOneShotParams.push('import');
+      }
+      if (params.get('action') === 'add') {
+        queueMicrotask(() => this.openAdd());
+        handledOneShotParams.push('action');
+      }
+      if (handledOneShotParams.length) {
+        void clearOneShotQueryParams(this.router, this.route, handledOneShotParams);
+      }
+    });
 
     this.filters.get('period')?.valueChanges.subscribe((period) => {
       if (period !== 'custom') return;
@@ -992,6 +1264,8 @@ export class TransactionsComponent implements OnInit {
           categoryId: v.categoryId || null,
           hideCc: v.hideCcAndRefunds ? '1' : null,
           sort: v.sort === 'date_desc' ? null : v.sort,
+          action: null,
+          import: null,
         },
         queryParamsHandling: 'merge',
         replaceUrl: true,
@@ -1005,7 +1279,7 @@ export class TransactionsComponent implements OnInit {
     const target = order.indexOf(step);
     if (target < current) return 'border-action bg-action-soft text-action';
     if (target === current) return 'border-action bg-white text-action shadow-panel';
-    return 'border-line bg-white text-slate-500';
+    return 'border-line bg-surface text-ink-muted';
   }
 
   private isDateRangePreset(value: string): value is DateRangePreset {
@@ -1019,7 +1293,22 @@ export class TransactionsComponent implements OnInit {
   compareIds = (a: string | null, b: string | null): boolean => a === b;
 
   categoryValue(tx: Transaction): string | null {
-    return this.pendingCategories()[tx.id] ?? tx.categoryId;
+    const pending = this.pendingCategories();
+    return Object.prototype.hasOwnProperty.call(pending, tx.id) ? pending[tx.id] : tx.categoryId;
+  }
+
+  transactionCategoryName(tx: Transaction): string {
+    const categoryId = this.categoryValue(tx);
+    return categoryId ? this.categoryName(categoryId) : 'Uncategorized';
+  }
+
+  openMobileCategory(tx: Transaction): void {
+    this.mobileCategoryTransaction.set(tx);
+  }
+
+  async chooseMobileCategory(tx: Transaction, categoryId: string | null): Promise<void> {
+    this.mobileCategoryTransaction.set(null);
+    await this.updateCategory(tx.id, categoryId);
   }
 
   accountName(accountId: string): string {
@@ -1035,6 +1324,9 @@ export class TransactionsComponent implements OnInit {
       categoryId: 'uncategorized',
       kind: 'expense',
     });
+    this.snack.open(`${this.transactions().length} uncategorized transaction results.`, 'Dismiss', {
+      duration: 2500,
+    });
   }
 
   clearFilters(): void {
@@ -1049,14 +1341,17 @@ export class TransactionsComponent implements OnInit {
       hideCcAndRefunds: false,
       sort: 'date_desc',
     });
+    this.snack.open(`Filters cleared. ${this.transactions().length} transactions shown.`, 'Dismiss', {
+      duration: 2500,
+    });
   }
 
   categoryName(id: string): string {
     return this.categories().find((c) => c.id === id)?.name ?? 'Unknown';
   }
 
-  pendingCategoryFor(id: string): string | null {
-    return this.pendingCategories()[id] ?? null;
+  isCategoryPending(id: string): boolean {
+    return Object.prototype.hasOwnProperty.call(this.pendingCategories(), id);
   }
 
   hasActiveFilters(): boolean {
@@ -1119,15 +1414,15 @@ export class TransactionsComponent implements OnInit {
   kindBadgeClass(tx: Transaction): string {
     switch (tx.kind) {
       case 'income':
-        return 'bg-emerald-100 text-emerald-700';
+        return 'bg-finance-incomeSoft text-finance-income';
       case 'expense':
-        return 'bg-red-100 text-red-700';
+        return 'bg-finance-expenseSoft text-finance-expense';
       case 'refund':
         return 'bg-sky-100 text-sky-700';
       case 'cc_payment':
-        return 'bg-amber-100 text-amber-700';
+        return 'bg-finance-warningSoft text-finance-warning';
       case 'transfer':
-        return 'bg-slate-100 text-slate-600';
+        return 'bg-surface-muted text-ink-muted';
     }
   }
 
@@ -1288,13 +1583,13 @@ export class TransactionsComponent implements OnInit {
       this.snack.open(
         `${count} transaction${count === 1 ? '' : 's'} imported`,
         'Dismiss',
-        { duration: 4000 }
+        { duration: 4000, panelClass: ['snackbar-success'] }
       );
     } catch (e: unknown) {
       this.snack.open(
         e instanceof Error ? e.message : 'Import failed. Please try again.',
         'Dismiss',
-        { duration: 5000 }
+        { duration: 5000, panelClass: ['snackbar-error'] }
       );
     } finally {
       this.importing.set(false);
@@ -1312,10 +1607,17 @@ export class TransactionsComponent implements OnInit {
     const ref = this.dialog.open(TransactionFormDialogComponent, {
       width: '95vw',
       maxWidth: '560px',
+      panelClass: ['app-dialog-panel', 'app-transaction-dialog'],
       data: { mode: 'add', accounts: this.accounts(), categories: this.categories() },
     });
     ref.afterClosed().subscribe((result: TransactionFormResult | undefined) => {
-      if (result) void this.transactionService.create(result);
+      if (!result) return;
+      void this.transactionService.create(result).then(() => {
+        this.snack.open('Transaction added.', 'Dismiss', {
+          duration: 2500,
+          panelClass: ['snackbar-success'],
+        });
+      });
     });
   }
 
@@ -1323,6 +1625,7 @@ export class TransactionsComponent implements OnInit {
     const ref = this.dialog.open(TransactionFormDialogComponent, {
       width: '95vw',
       maxWidth: '560px',
+      panelClass: ['app-dialog-panel', 'app-transaction-dialog'],
       data: {
         mode: 'edit',
         accounts: this.accounts(),
@@ -1331,7 +1634,13 @@ export class TransactionsComponent implements OnInit {
       },
     });
     ref.afterClosed().subscribe((result: TransactionFormResult | undefined) => {
-      if (result) void this.transactionService.update(tx.id, result);
+      if (!result) return;
+      void this.transactionService.update(tx.id, result).then(() => {
+        this.snack.open('Transaction updated.', 'Dismiss', {
+          duration: 2500,
+          panelClass: ['snackbar-success'],
+        });
+      });
     });
   }
 
@@ -1350,6 +1659,10 @@ export class TransactionsComponent implements OnInit {
     if (!merchant) return;
     await this.transactionService.update(id, { merchant });
     this.cancelEditMerchant();
+    this.snack.open('Merchant updated.', 'Dismiss', {
+      duration: 2500,
+      panelClass: ['snackbar-success'],
+    });
   }
 
   async updateCategory(id: string, categoryId: string | null): Promise<void> {
@@ -1361,7 +1674,7 @@ export class TransactionsComponent implements OnInit {
       this.snack.open(
         e instanceof Error ? e.message : 'Could not save category. Please try again.',
         'Dismiss',
-        { duration: 5000 }
+        { duration: 5000, panelClass: ['snackbar-error'] }
       );
     } finally {
       this.pendingCategories.update((map) => {
@@ -1382,6 +1695,10 @@ export class TransactionsComponent implements OnInit {
     });
     if (!confirmed) return;
     await this.transactionService.remove(id);
+    this.snack.open('Transaction deleted.', 'Dismiss', {
+      duration: 3000,
+      panelClass: ['snackbar-success'],
+    });
   }
 
   async clearAllTransactions(): Promise<void> {
@@ -1436,13 +1753,14 @@ export class TransactionsComponent implements OnInit {
       const total = Math.max(ids.length, swept);
       this.snack.open(`Deleted ${total} transaction${total === 1 ? '' : 's'}.`, 'Dismiss', {
         duration: 4000,
+        panelClass: ['snackbar-success'],
       });
     } catch (e: unknown) {
       console.error('Failed to clear transactions', e);
       this.snack.open(
         e instanceof Error ? e.message : 'Failed to clear transactions. Check the console for details.',
         'Dismiss',
-        { duration: 8000 }
+        { duration: 8000, panelClass: ['snackbar-error'] }
       );
     } finally {
       this.clearing.set(false);
@@ -1453,6 +1771,7 @@ export class TransactionsComponent implements OnInit {
     const ref = this.dialog.open(SplitDialogComponent, {
       width: '95vw',
       maxWidth: '640px',
+      panelClass: ['app-dialog-panel', 'app-transaction-dialog'],
       data: { transaction: tx, categories: this.categories() },
     });
     ref.afterClosed().subscribe((split) => {

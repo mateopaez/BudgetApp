@@ -8,6 +8,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { Chart, ChartConfiguration, registerables } from 'chart.js';
+import { chartCssColor, chartCssVariable, colorWithAlpha } from '../chart-colors.util';
 
 Chart.register(...registerables);
 
@@ -18,11 +19,25 @@ Chart.register(...registerables);
   template: `
     <div class="panel p-5">
       <h3 class="kicker mb-4">{{ title() }}</h3>
-      <div class="h-56">
-        <canvas #canvas role="img" [attr.aria-label]="title() + ' chart'"></canvas>
+      <div class="h-56" [class.hidden]="labels().length === 0">
+        <canvas #canvas aria-hidden="true"></canvas>
       </div>
       @if (labels().length === 0) {
-        <p class="mt-2 text-center text-sm text-ink-muted">No balance history for this period yet.</p>
+        <div class="grid min-h-24 place-items-center rounded-2xl border border-dashed border-line bg-surface-muted px-4 text-center">
+          <p class="text-sm text-ink-muted">No balance history for this period yet.</p>
+        </div>
+      } @else {
+        <details class="mt-3 rounded-xl border border-line bg-surface px-3 py-2 text-sm">
+          <summary class="min-h-11 cursor-pointer py-2 font-semibold text-action">View chart data</summary>
+          <ul class="m-0 max-h-56 list-none divide-y divide-line overflow-y-auto p-0">
+            @for (label of labels(); track $index; let rowIndex = $index) {
+              <li class="flex min-h-11 items-center justify-between gap-3 py-2">
+                <span>{{ label }}</span>
+                <span class="money font-semibold">{{ formatValue(data()[rowIndex]) }}</span>
+              </li>
+            }
+          </ul>
+        </details>
       }
     </div>
   `,
@@ -31,10 +46,18 @@ export class ChartCardComponent implements AfterViewInit, OnDestroy {
   readonly title = input.required<string>();
   readonly labels = input<string[]>([]);
   readonly data = input<number[]>([]);
-  readonly color = input('#0F766E');
+  readonly color = input('var(--chart-series-1)');
 
   private readonly canvasRef = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
   private chart?: Chart;
+
+  formatValue(value: number | undefined): string {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: 'USD',
+      maximumFractionDigits: 2,
+    }).format(value ?? 0);
+  }
 
   constructor() {
     effect(() => {
@@ -57,6 +80,10 @@ export class ChartCardComponent implements AfterViewInit, OnDestroy {
   }
 
   private buildConfig(): ChartConfiguration<'line'> {
+    const canvas = this.canvasRef().nativeElement;
+    const color = chartCssColor(canvas, this.color(), '#0F766E');
+    const gridColor = chartCssVariable(canvas, '--chart-grid', '#DED8CE');
+    const labelColor = chartCssVariable(canvas, '--chart-label', '#66736F');
     return {
       type: 'line',
       data: {
@@ -64,8 +91,8 @@ export class ChartCardComponent implements AfterViewInit, OnDestroy {
         datasets: [
           {
             data: [],
-            borderColor: this.color(),
-            backgroundColor: `${this.color()}22`,
+            borderColor: color,
+            backgroundColor: colorWithAlpha(color, '22'),
             fill: true,
             tension: 0.3,
             pointRadius: 3,
@@ -79,13 +106,13 @@ export class ChartCardComponent implements AfterViewInit, OnDestroy {
         plugins: { legend: { display: false } },
         scales: {
           x: {
-            grid: { color: '#DED8CE' },
-            ticks: { color: '#66736F', font: { size: 11 } },
+            grid: { color: gridColor },
+            ticks: { color: labelColor, font: { size: 11 } },
           },
           y: {
             beginAtZero: true,
-            grid: { color: '#DED8CE' },
-            ticks: { color: '#66736F', font: { size: 11 } },
+            grid: { color: gridColor },
+            ticks: { color: labelColor, font: { size: 11 } },
           },
         },
       },
@@ -94,10 +121,11 @@ export class ChartCardComponent implements AfterViewInit, OnDestroy {
 
   private applyData(labels: string[], data: number[], color: string): void {
     if (!this.chart) return;
+    const resolvedColor = chartCssColor(this.canvasRef().nativeElement, color, '#0F766E');
     this.chart.data.labels = labels;
     this.chart.data.datasets[0].data = data;
-    this.chart.data.datasets[0].borderColor = color;
-    this.chart.data.datasets[0].backgroundColor = `${color}22`;
+    this.chart.data.datasets[0].borderColor = resolvedColor;
+    this.chart.data.datasets[0].backgroundColor = colorWithAlpha(resolvedColor, '22');
     this.chart.update();
   }
 }

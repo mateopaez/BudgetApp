@@ -14,13 +14,16 @@ import { CategoryService } from '../../core/services/category.service';
 import { AccountService } from '../../core/services/account.service';
 import { DashboardService } from '../../core/services/dashboard.service';
 import { TransactionService } from '../../core/services/transaction.service';
+import { ScheduledItemService } from '../../core/services/scheduled-item.service';
 import { Transaction } from '../../core/models';
 import { buildCategorySpendRows, UNCATEGORIZED_ID } from '../../core/utils/budget.util';
 import { computeNetWorth } from '../../core/utils/balance-history.util';
-import { computeAccountBalance } from '../../core/utils/balance.util';
-import { DateRangePreset, formatDateParam, resolveDateRange } from '../../core/utils/date.util';
+import { computeAccountBalance, roundMoney } from '../../core/utils/balance.util';
+import { DateRangePreset, formatDateParam, resolveDateRange, startOfDay } from '../../core/utils/date.util';
+import { expandScheduledOccurrences, filterPostedScheduledOccurrences } from '../../core/utils/calendar.util';
 import { ChartBarComponent } from '../../shared/chart-bar/chart-bar.component';
 import { ChartDonutComponent } from '../../shared/chart-donut/chart-donut.component';
+import { toLoadableSignal } from '../../core/utils/loadable-signal.util';
 
 @Component({
   selector: 'app-dashboard',
@@ -40,7 +43,7 @@ import { ChartDonutComponent } from '../../shared/chart-donut/chart-donut.compon
     ChartDonutComponent,
   ],
   template: `
-    <div class="space-y-6">
+    <div class="page-stack">
       <header class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div class="page-header">
           <p class="kicker">{{ dateRange().label }}</p>
@@ -53,39 +56,56 @@ import { ChartDonutComponent } from '../../shared/chart-donut/chart-donut.compon
         </div>
       </header>
 
+      @if (initialLoading()) {
+        <section class="panel animate-pulse p-6" role="status" aria-live="polite">
+          <p class="font-semibold text-ink">Loading your financial overview…</p>
+          <p class="mt-1 text-sm text-ink-muted">Waiting for your accounts, activity, and plans.</p>
+        </section>
+      }
+      @if (loadError()) {
+        <p class="rounded-2xl border border-finance-expense/20 bg-finance-expenseSoft p-4 text-sm text-finance-expense" role="alert">
+          {{ loadError() }}
+        </p>
+      }
+      <div class="contents" [class.hidden]="initialLoading()">
       <section class="panel overflow-hidden p-0">
         <div class="grid gap-0 lg:grid-cols-[1.35fr_0.65fr]">
-          <div class="p-5 sm:p-6">
-            <p class="kicker">Money snapshot</p>
-            <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div class="p-4 sm:p-6">
+            <div class="flex items-center justify-between gap-3">
+              <p class="kicker">Money snapshot</p>
+              <a class="inline-flex min-h-11 items-center text-sm font-semibold text-action no-underline hover:underline" routerLink="/accounts" aria-label="View and manage accounts">
+                Accounts
+              </a>
+            </div>
+            <div class="mt-2 flex items-end justify-between gap-3">
               <div>
                 <p class="text-sm text-ink-muted">Net worth today</p>
-                <p class="amount-xl">{{ netWorth() | currency }}</p>
+                <p class="money text-2xl font-semibold text-ink sm:text-4xl">{{ netWorth() | currency }}</p>
               </div>
-              <p class="max-w-sm text-sm leading-6 text-ink-muted">
+              <p class="hidden max-w-sm text-sm leading-6 text-ink-muted sm:block">
                 Includes account opening balances plus posted transactions. Credit card balances are treated as liabilities.
               </p>
             </div>
 
-            <div class="mt-6 grid gap-3 sm:grid-cols-3">
-              <div class="metric">
+            <div class="mt-4 grid grid-cols-3 gap-2 sm:mt-6 sm:gap-3">
+              <div class="rounded-xl border border-line bg-surface px-2 py-3 sm:p-4">
                 <p class="kicker">Cash</p>
-                <p class="amount-lg mt-1">{{ cashBalance() | currency }}</p>
-                <p class="mt-1 text-xs text-ink-muted">Checking + savings</p>
+                <p class="money mt-1 text-sm font-semibold text-ink sm:text-xl">{{ cashBalance() | currency }}</p>
+                <p class="mt-1 hidden text-xs text-ink-muted sm:block">Checking + savings</p>
               </div>
-              <div class="metric">
+              <div class="rounded-xl border border-line bg-surface px-2 py-3 sm:p-4">
                 <p class="kicker">Credit cards</p>
-                <p class="amount-lg mt-1" [class.text-finance-expense]="creditCardBalance() < 0">
+                <p class="money mt-1 text-sm font-semibold text-ink sm:text-xl" [class.text-finance-expense]="creditCardBalance() < 0">
                   {{ creditCardBalance() | currency }}
                 </p>
-                <p class="mt-1 text-xs text-ink-muted">Current liability balance</p>
+                <p class="mt-1 hidden text-xs text-ink-muted sm:block">Current liability balance</p>
               </div>
-              <div class="metric">
+              <div class="rounded-xl border border-line bg-surface px-2 py-3 sm:p-4">
                 <p class="kicker">Period net</p>
-                <p class="amount-lg mt-1" [class.text-finance-expense]="summary().savings < 0" [class.text-finance-income]="summary().savings >= 0">
+                <p class="money mt-1 text-sm font-semibold sm:text-xl" [class.text-finance-expense]="summary().savings < 0" [class.text-finance-income]="summary().savings >= 0">
                   {{ summary().savings | currency }}
                 </p>
-                <p class="mt-1 text-xs text-ink-muted">Income minus spending</p>
+                <p class="mt-1 hidden text-xs text-ink-muted sm:block">Income minus spending</p>
               </div>
             </div>
           </div>
@@ -97,35 +117,23 @@ import { ChartDonutComponent } from '../../shared/chart-donut/chart-donut.compon
                 <h2 class="mt-1 text-lg font-semibold tracking-[-0.02em] text-ink">Next best actions</h2>
               </div>
             </div>
-            <div class="mt-4 space-y-3">
-              @if (accountCount() === 0) {
-                <a class="block rounded-2xl border border-line bg-surface p-4 no-underline transition hover:border-action/50 hover:bg-action-soft/30" routerLink="/accounts">
-                  <p class="font-semibold text-ink">Add your first account</p>
-                  <p class="mt-1 text-sm text-ink-muted">Start with checking so balances and reports have context.</p>
+            <div class="mt-4">
+              @for (action of nextActions(); track action.title; let first = $first) {
+                <a
+                  class="block min-h-11 no-underline transition"
+                  [class]="first
+                    ? 'rounded-2xl border border-action/30 bg-action-soft p-4 hover:border-action'
+                    : 'border-t border-line px-1 py-3 hover:bg-action-soft/30'"
+                  [routerLink]="action.route"
+                  [queryParams]="action.queryParams"
+                >
+                  <p class="font-semibold text-ink">{{ action.title }}</p>
+                  <p class="mt-1 text-sm text-ink-muted">{{ action.body }}</p>
                 </a>
-              }
-              @if (accountCount() > 0 && transactionCount() === 0) {
-                <a class="block rounded-2xl border border-line bg-surface p-4 no-underline transition hover:border-action/50 hover:bg-action-soft/30" routerLink="/transactions" [queryParams]="{ import: '1' }">
-                  <p class="font-semibold text-ink">Import recent activity</p>
-                  <p class="mt-1 text-sm text-ink-muted">Bring in a CSV or add your first transaction manually.</p>
-                </a>
-              }
-              @if (uncategorizedCount() > 0) {
-                <a class="block rounded-2xl border border-line bg-surface p-4 no-underline transition hover:border-action/50 hover:bg-action-soft/30" routerLink="/transactions" [queryParams]="uncategorizedQueryParams()">
-                  <p class="font-semibold text-ink">Review {{ uncategorizedCount() }} uncategorized</p>
-                  <p class="mt-1 text-sm text-ink-muted">Assign categories so spending reports stay accurate.</p>
-                </a>
-              }
-              @if (overBudgetRows().length > 0) {
-                <a class="block rounded-2xl border border-line bg-surface p-4 no-underline transition hover:border-action/50 hover:bg-action-soft/30" routerLink="/categories">
-                  <p class="font-semibold text-ink">{{ overBudgetRows().length }} budget {{ overBudgetRows().length === 1 ? 'category is' : 'categories are' }} over</p>
-                  <p class="mt-1 text-sm text-ink-muted">Check monthly limits before more spending.</p>
-                </a>
-              }
-              @if (accountCount() > 0 && transactionCount() > 0 && uncategorizedCount() === 0 && overBudgetRows().length === 0) {
+              } @empty {
                 <div class="rounded-2xl border border-line bg-surface p-4">
                   <p class="font-semibold text-ink">Nothing urgent</p>
-                  <p class="mt-1 text-sm text-ink-muted">Your activity is categorized and budgets are calm for this period.</p>
+                  <p class="mt-1 text-sm text-ink-muted">Your activity is categorized, budgets are calm, and nothing is due in the next week.</p>
                 </div>
               }
             </div>
@@ -146,16 +154,17 @@ import { ChartDonutComponent } from '../../shared/chart-donut/chart-donut.compon
                 <mat-option value="custom">Custom range</mat-option>
               </mat-select>
             </mat-form-field>
-            <mat-form-field class="sm:col-span-2">
-              <mat-label>Custom range</mat-label>
-              <mat-date-range-input [rangePicker]="rangePicker">
-                <input matStartDate formControlName="from" placeholder="Start" />
-                <input matEndDate formControlName="to" placeholder="End" />
-              </mat-date-range-input>
-              <mat-datepicker-toggle matIconSuffix [for]="rangePicker" />
-              <mat-date-range-picker #rangePicker />
-              <mat-hint>Selecting dates switches to Custom range</mat-hint>
-            </mat-form-field>
+            @if (periodValues().period === 'custom') {
+              <mat-form-field class="sm:col-span-2">
+                <mat-label>Custom range</mat-label>
+                <mat-date-range-input [rangePicker]="rangePicker">
+                  <input matStartDate formControlName="from" placeholder="Start" />
+                  <input matEndDate formControlName="to" placeholder="End" />
+                </mat-date-range-input>
+                <mat-datepicker-toggle matIconSuffix [for]="rangePicker" />
+                <mat-date-range-picker #rangePicker />
+              </mat-form-field>
+            }
           </div>
           <mat-slide-toggle [checked]="refundsOffset()" (change)="refundsOffset.set($event.checked)">
             Refunds offset spending
@@ -213,11 +222,19 @@ import { ChartDonutComponent } from '../../shared/chart-donut/chart-donut.compon
               <p class="kicker">Top spending</p>
               <h2 class="text-lg font-semibold tracking-[-0.02em] text-ink">Categories to watch</h2>
             </div>
-            <a class="text-sm font-semibold text-action hover:underline" routerLink="/categories">Budgets</a>
+            <a class="inline-flex min-h-11 items-center text-sm font-semibold text-action hover:underline" routerLink="/categories">Budgets</a>
           </div>
+          <p class="mb-3 text-sm text-ink-muted">Choose a category here or in the donut to update the monthly breakdown below.</p>
           <div class="space-y-3">
             @for (row of topCategoryRows(); track row.categoryId) {
-              <button type="button" class="w-full rounded-2xl border border-line bg-surface p-4 text-left transition hover:border-action/50 hover:bg-action-soft/30" (click)="goToCategory(row.categoryId, 'expense')">
+              <button
+                type="button"
+                class="min-h-11 w-full rounded-2xl border bg-surface p-4 text-left transition hover:border-action/50 hover:bg-action-soft/30"
+                [class.border-action]="effectiveDrillId() === row.categoryId"
+                [class.border-line]="effectiveDrillId() !== row.categoryId"
+                [attr.aria-pressed]="effectiveDrillId() === row.categoryId"
+                (click)="drillCategoryId.set(row.categoryId)"
+              >
                 <div class="flex items-start justify-between gap-3">
                   <div>
                     <p class="font-semibold text-ink">{{ row.name }}</p>
@@ -232,7 +249,7 @@ import { ChartDonutComponent } from '../../shared/chart-donut/chart-donut.compon
                 }
               </button>
             } @empty {
-              <div class="rounded-2xl border border-line bg-[#fffcf7] p-5 text-sm text-ink-muted">
+              <div class="rounded-2xl border border-line bg-surface-raised p-5 text-sm text-ink-muted">
                 No category spending in this period yet. Add a transaction or import a CSV to start seeing trends.
               </div>
             }
@@ -256,6 +273,15 @@ import { ChartDonutComponent } from '../../shared/chart-donut/chart-donut.compon
               </mat-select>
             </mat-form-field>
           </div>
+          @if (effectiveDrillId()) {
+            <a
+              class="inline-flex min-h-11 items-center text-sm font-semibold text-action hover:underline"
+              routerLink="/transactions"
+              [queryParams]="categoryActivityQueryParams(effectiveDrillId())"
+            >
+              Open {{ drillCategoryName() }} activity
+            </a>
+          }
           <app-chart-bar
             [labels]="drillSeries().labels"
             [data]="drillSeries().values"
@@ -279,6 +305,7 @@ import { ChartDonutComponent } from '../../shared/chart-donut/chart-donut.compon
           (categoryClick)="onExpenseCategoryClick($event)"
         />
       </section>
+      </div>
     </div>
   `,
 })
@@ -289,6 +316,7 @@ export class DashboardComponent {
   private readonly budgetService = inject(BudgetService);
   private readonly accountService = inject(AccountService);
   private readonly transactionService = inject(TransactionService);
+  private readonly scheduledService = inject(ScheduledItemService);
   private readonly dashboardService = inject(DashboardService);
 
   readonly refundsOffset = signal(false);
@@ -300,14 +328,47 @@ export class DashboardComponent {
     to: this.fb.control<Date | null>(null),
   });
 
-  private readonly periodValues = toSignal(this.periodForm.valueChanges, {
+  readonly periodValues = toSignal(this.periodForm.valueChanges, {
     initialValue: this.periodForm.getRawValue(),
   });
 
-  private readonly categories = toSignal(this.categoryService.watchCategories(), { initialValue: [] });
-  private readonly budgets = toSignal(this.budgetService.watchBudgets(), { initialValue: [] });
-  private readonly accounts = toSignal(this.accountService.watchAccounts(), { initialValue: [] });
-  private readonly transactions = toSignal(this.transactionService.watchAllTransactions(), { initialValue: [] });
+  private readonly categoryState = toLoadableSignal(this.categoryService.watchCategories(), []);
+  private readonly budgetState = toLoadableSignal(this.budgetService.watchBudgets(), []);
+  private readonly accountState = toLoadableSignal(this.accountService.watchAccounts(), []);
+  private readonly transactionState = toLoadableSignal(
+    this.transactionService.watchAllTransactions(),
+    []
+  );
+  private readonly scheduledState = toLoadableSignal(
+    this.scheduledService.watchScheduledItems(),
+    []
+  );
+  private readonly categories = this.categoryState.value;
+  private readonly budgets = this.budgetState.value;
+  private readonly accounts = this.accountState.value;
+  private readonly transactions = this.transactionState.value;
+  private readonly scheduledItems = this.scheduledState.value;
+  readonly initialLoading = computed(() =>
+    [
+      this.categoryState,
+      this.budgetState,
+      this.accountState,
+      this.transactionState,
+      this.scheduledState,
+    ].some((state) => state.loading())
+  );
+  readonly loadError = computed(
+    () =>
+      [
+        this.categoryState,
+        this.budgetState,
+        this.accountState,
+        this.transactionState,
+        this.scheduledState,
+      ]
+        .map((state) => state.error())
+        .find((message): message is string => !!message) ?? null
+  );
 
   constructor() {
     this.periodForm.get('from')?.valueChanges.subscribe(() => this.ensureCustomPeriod());
@@ -355,9 +416,9 @@ export class DashboardComponent {
   );
 
   readonly monthlyOverviewDatasets = computed(() => [
-    { label: 'Income', data: this.incomeSeries().values, color: '#15803D' },
-    { label: 'Spending', data: this.expenseSeries().values, color: '#B42318' },
-    { label: 'Saved', data: this.savingsSeries().values, color: '#0369A1' },
+    { label: 'Income', data: this.incomeSeries().values, color: 'var(--color-income)' },
+    { label: 'Spending', data: this.expenseSeries().values, color: 'var(--color-expense)' },
+    { label: 'Saved', data: this.savingsSeries().values, color: 'var(--color-saving)' },
   ]);
 
   readonly expenseSlices = computed(() =>
@@ -392,6 +453,76 @@ export class DashboardComponent {
   readonly uncategorizedCount = computed(() =>
     this.transactions().filter((tx) => this.isUncategorizedExpenseInRange(tx)).length
   );
+
+  readonly upcomingScheduled = computed(() => {
+    const start = startOfDay(new Date());
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    return filterPostedScheduledOccurrences(
+      expandScheduledOccurrences(this.scheduledItems(), start, end),
+      this.transactions()
+    );
+  });
+
+  readonly upcomingScheduledCount = computed(() => this.upcomingScheduled().length);
+  readonly nextScheduledItem = computed(() => this.upcomingScheduled()[0] ?? null);
+  readonly upcomingScheduledNet = computed(() =>
+    roundMoney(this.upcomingScheduled().reduce((sum, item) => sum + item.amount, 0))
+  );
+  readonly nextActions = computed(() => {
+    const actions: {
+      title: string;
+      body: string;
+      route: string;
+      queryParams?: Record<string, string>;
+    }[] = [];
+    if (this.accountCount() === 0) {
+      actions.push({
+        title: 'Add your first account',
+        body: 'Start with checking so balances and reports have context.',
+        route: '/accounts',
+      });
+    }
+    if (this.accountCount() > 0 && this.transactionCount() === 0) {
+      actions.push({
+        title: 'Import recent activity',
+        body: 'Bring in a CSV or add your first transaction manually.',
+        route: '/transactions',
+        queryParams: { import: '1' },
+      });
+    }
+    if (this.uncategorizedCount() > 0) {
+      actions.push({
+        title: `Review ${this.uncategorizedCount()} uncategorized in selected period`,
+        body: 'Activity opens to this exact period so the review count matches.',
+        route: '/transactions',
+        queryParams: this.uncategorizedQueryParams(),
+      });
+    }
+    if (this.overBudgetRows().length > 0) {
+      const count = this.overBudgetRows().length;
+      actions.push({
+        title: `${count} budget ${count === 1 ? 'category is' : 'categories are'} over`,
+        body: 'Check monthly limits before more spending.',
+        route: '/categories',
+      });
+    }
+    if (this.upcomingScheduledCount() > 0) {
+      const count = this.upcomingScheduledCount();
+      const next = this.nextScheduledItem();
+      actions.push({
+        title: `${count} upcoming ${count === 1 ? 'item' : 'items'}`,
+        body: next
+          ? `Next: ${next.title} on ${new Intl.DateTimeFormat('en-US', {
+              month: 'short',
+              day: 'numeric',
+            }).format(next.date)} · net ${this.currencyText(this.upcomingScheduledNet())}`
+          : 'Review bills and paychecks due soon.',
+        route: '/calendar',
+      });
+    }
+    return actions;
+  });
 
   readonly drillOptions = computed(() => {
     const fromSpend = this.expenseSlices().map((s) => ({ id: s.categoryId, name: s.name }));
@@ -447,6 +578,18 @@ export class DashboardComponent {
     return queryParams;
   }
 
+  categoryActivityQueryParams(categoryId: string): Record<string, string> {
+    const range = this.dateRange();
+    const queryParams: Record<string, string> = {
+      period: 'custom',
+      kind: 'expense',
+      categoryId: categoryId === UNCATEGORIZED_ID ? 'uncategorized' : categoryId,
+    };
+    if (range.start) queryParams['from'] = formatDateParam(range.start);
+    if (range.end) queryParams['to'] = formatDateParam(range.end);
+    return queryParams;
+  }
+
   onExpenseCategoryClick(categoryId: string): void {
     this.drillCategoryId.set(categoryId);
   }
@@ -464,6 +607,10 @@ export class DashboardComponent {
     if (this.periodForm.get('period')?.value !== 'custom') {
       this.periodForm.patchValue({ period: 'custom' }, { emitEvent: true });
     }
+  }
+
+  private currencyText(value: number): string {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
   }
 
   private isUncategorizedExpenseInRange(tx: Transaction): boolean {

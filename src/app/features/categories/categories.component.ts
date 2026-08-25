@@ -1,6 +1,5 @@
-import { CurrencyPipe } from '@angular/common';
+import { CurrencyPipe, DatePipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -10,12 +9,15 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { MatDialog } from '@angular/material/dialog';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { Router } from '@angular/router';
 import { BudgetPeriod, Category, CategoryBudget } from '../../core/models';
 import { BudgetService } from '../../core/services/budget.service';
 import { CategoryService } from '../../core/services/category.service';
 import { TransactionService } from '../../core/services/transaction.service';
 import { buildCategorySpendRows } from '../../core/utils/budget.util';
 import { resolveDateRange } from '../../core/utils/date.util';
+import { toLoadableSignal } from '../../core/utils/loadable-signal.util';
 import { confirmDialog } from '../../shared/confirm-dialog/confirm-dialog.component';
 import { ModalSheetComponent } from '../../shared/modal-sheet/modal-sheet.component';
 
@@ -28,12 +30,17 @@ interface CategoryBudgetRow {
   monthlyBudgetAmount: number | null;
 }
 
+interface TrackedCategoryBudgetRow extends CategoryBudgetRow {
+  budget: CategoryBudget;
+}
+
 @Component({
   selector: 'app-categories',
   standalone: true,
   imports: [
     ReactiveFormsModule,
     CurrencyPipe,
+    DatePipe,
     MatCardModule,
     MatFormFieldModule,
     MatInputModule,
@@ -41,11 +48,12 @@ interface CategoryBudgetRow {
     MatButtonModule,
     MatIconModule,
     MatProgressBarModule,
+    MatSnackBarModule,
     ModalSheetComponent,
   ],
   providers: [CurrencyPipe],
   template: `
-    <div class="space-y-6">
+    <div class="page-stack">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div class="page-header">
           <h1 class="page-title">Budgets</h1>
@@ -58,6 +66,24 @@ interface CategoryBudgetRow {
           </button>
         }
       </div>
+
+      @if (initialLoading()) {
+        <section class="panel animate-pulse p-6" role="status" aria-live="polite">
+          <p class="font-semibold text-ink">Loading budgets and categories…</p>
+          <p class="mt-1 text-sm text-ink-muted">Your targets will appear after the first update.</p>
+        </section>
+      }
+      @if (loadError()) {
+        <p class="rounded-2xl border border-finance-expense/20 bg-finance-expenseSoft p-4 text-sm text-finance-expense" role="alert">{{ loadError() }}</p>
+      }
+      <div class="contents" [class.hidden]="initialLoading()">
+      <section class="flex items-center gap-3 rounded-2xl border border-line bg-action-soft/50 px-4 py-3" aria-label="Budget month">
+        <mat-icon class="text-action" aria-hidden="true">calendar_month</mat-icon>
+        <div>
+          <p class="font-semibold text-ink">{{ currentMonth() | date: 'MMMM yyyy' }}</p>
+          <p class="text-sm text-ink-muted">Budgets and spending below are for the current calendar month.</p>
+        </div>
+      </section>
 
       <div class="grid gap-3 sm:grid-cols-3">
         <div class="metric">
@@ -73,7 +99,7 @@ interface CategoryBudgetRow {
           <p class="kicker">Remaining</p>
           <p
             class="money mt-1 text-2xl font-semibold"
-            [class]="budgetSummary().remaining < 0 ? 'text-red-600' : 'text-emerald-700'"
+            [class]="budgetSummary().remaining < 0 ? 'text-finance-expense' : 'text-finance-income'"
           >
             {{ abs(budgetSummary().remaining) | currency }}
           </p>
@@ -90,68 +116,53 @@ interface CategoryBudgetRow {
             Tap edit to rename a category or adjust its budget. System categories are read-only.
           </mat-card-subtitle>
         </mat-card-header>
-        <mat-card-content class="space-y-4">
-          <ul class="m-0 list-none divide-y divide-line overflow-hidden rounded-xl border border-line p-0">
-            @for (row of categoryRows(); track row.cat.id) {
-              <li class="space-y-3 px-4 py-3">
-                <div class="flex items-center gap-2">
-                  <span class="min-w-0 flex-1 truncate font-medium text-ink">{{ row.cat.name }}</span>
-                  @if (row.cat.isSystem) {
-                    <span class="shrink-0 rounded-full bg-action-soft px-2.5 py-0.5 text-xs font-medium text-action">
-                      System
-                    </span>
-                  } @else {
-                    <button mat-icon-button (click)="startEditCategory(row)" [attr.aria-label]="'Edit category ' + row.cat.name">
-                      <mat-icon>edit</mat-icon>
-                    </button>
-                    <button mat-icon-button color="warn" (click)="remove(row.cat)" [attr.aria-label]="'Delete category ' + row.cat.name">
-                      <mat-icon>delete</mat-icon>
-                    </button>
-                  }
-                </div>
+        <mat-card-content class="space-y-6">
+          @if (trackedRows().length) {
+            <section aria-labelledby="tracked-categories-title">
+              <div class="mb-3">
+                <h3 id="tracked-categories-title" class="font-semibold text-ink">Tracked budgets</h3>
+                <p class="text-sm text-ink-muted">Categories with an active monthly or weekly target.</p>
+              </div>
+              <ul class="m-0 list-none divide-y divide-line overflow-hidden rounded-xl border border-line p-0">
+                @for (row of trackedRows(); track row.cat.id) {
+                  <li class="space-y-3 px-4 py-3">
+                    <div class="flex items-center gap-2">
+                      <span class="min-w-0 flex-1 truncate font-medium text-ink">{{ row.cat.name }}</span>
+                      <button mat-icon-button (click)="startEditCategory(row)" [attr.aria-label]="'Edit category ' + row.cat.name">
+                        <mat-icon>edit</mat-icon>
+                      </button>
+                      <button mat-icon-button color="warn" (click)="remove(row.cat)" [attr.aria-label]="'Delete category ' + row.cat.name">
+                        <mat-icon>delete</mat-icon>
+                      </button>
+                    </div>
 
-                @if (!row.cat.isSystem) {
-                  <div class="space-y-3">
                     <div class="min-w-0 space-y-1">
                       <div class="flex flex-wrap items-center gap-2">
-                        <span
-                          class="rounded-full px-2.5 py-0.5 text-xs font-semibold"
-                          [class]="budgetStatusClass(row)"
-                        >
+                        <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold" [class]="budgetStatusClass(row)">
                           {{ budgetStatusLabel(row) }}
                         </span>
-                        @if (row.budget?.period === 'weekly') {
-                          <span class="text-xs text-ink-muted">{{ row.budget?.amount | currency }}/week</span>
+                        @if (row.budget.period === 'weekly') {
+                          <span class="text-xs text-ink-muted">{{ row.budget.amount | currency }}/week</span>
                         }
                       </div>
-
-                      @if (row.monthlyBudgetAmount != null) {
-                        <p class="text-sm text-slate-600">
-                          <span class="font-medium text-ink">{{ row.spent | currency }}</span>
-                          spent this month of
-                          <span class="font-medium text-ink">{{ row.monthlyBudgetAmount | currency }}</span>
-                          target
-                        </p>
-                        @if (row.remaining != null) {
-                          <p
-                            class="text-sm font-medium"
-                            [class]="row.remaining < 0 ? 'text-red-600' : 'text-emerald-700'"
-                          >
-                            @if (row.remaining < 0) {
-                              {{ abs(row.remaining) | currency }} over target
-                            } @else {
-                              {{ row.remaining | currency }} left this month
-                            }
-                          </p>
-                        }
-                      } @else {
-                        <p class="text-sm text-slate-500">
-                          {{ row.spent | currency }} spent this month · no budget set
+                      <p class="text-sm text-ink-muted">
+                        <span class="font-medium text-ink">{{ row.spent | currency }}</span>
+                        spent of
+                        <span class="font-medium text-ink">{{ row.monthlyBudgetAmount | currency }}</span>
+                        this month
+                      </p>
+                      @if (row.remaining != null) {
+                        <p class="text-sm font-medium" [class]="row.remaining < 0 ? 'text-finance-expense' : 'text-finance-income'">
+                          @if (row.remaining < 0) {
+                            {{ abs(row.remaining) | currency }} over target
+                          } @else {
+                            {{ row.remaining | currency }} left this month
+                          }
                         </p>
                       }
                     </div>
 
-                    @if (row.monthlyBudgetAmount != null && row.percentOfBudget != null) {
+                    @if (row.percentOfBudget != null) {
                       <div class="space-y-1">
                         <mat-progress-bar
                           mode="determinate"
@@ -159,18 +170,64 @@ interface CategoryBudgetRow {
                           [color]="row.percentOfBudget > 100 ? 'warn' : 'primary'"
                           [attr.aria-label]="budgetProgressLabel(row)"
                         />
-                        <p class="text-xs text-ink-muted">
-                          {{ Math.min(row.percentOfBudget, 100) }}% of target used
-                        </p>
+                        <p class="text-xs text-ink-muted">{{ Math.min(row.percentOfBudget, 100) }}% of target used</p>
                       </div>
                     }
-                  </div>
+                  </li>
                 }
-              </li>
-            }
-          </ul>
+              </ul>
+            </section>
+          } @else {
+            <section class="rounded-2xl border border-dashed border-action/40 bg-action-soft/40 p-5 text-center">
+              <mat-icon class="!h-9 !w-9 !text-4xl text-action" aria-hidden="true">track_changes</mat-icon>
+              <h3 class="mt-2 font-semibold text-ink">Set your first budget target</h3>
+              <p class="mx-auto mt-1 max-w-md text-sm text-ink-muted">
+                Add a category or edit an existing one, then set a monthly or weekly amount to start tracking progress.
+              </p>
+              <button mat-flat-button color="primary" type="button" class="!mt-4" (click)="startAddCategory()">
+                Add a tracked category
+              </button>
+            </section>
+          }
+
+          @if (untrackedRows().length) {
+            <section aria-labelledby="untracked-categories-title">
+              <div class="mb-3">
+                <h3 id="untracked-categories-title" class="font-semibold text-ink">Not tracked</h3>
+                <p class="text-sm text-ink-muted">Compact categories without a budget target.</p>
+              </div>
+              <ul class="m-0 list-none divide-y divide-line overflow-hidden rounded-xl border border-line p-0">
+                @for (row of untrackedRows(); track row.cat.id) {
+                  <li class="flex min-h-11 items-center gap-2 px-4 py-2">
+                    <span class="min-w-0 flex-1 truncate font-medium text-ink">{{ row.cat.name }}</span>
+                    <span class="text-sm text-ink-muted">{{ row.spent | currency }} spent</span>
+                    <button mat-icon-button (click)="startEditCategory(row)" [attr.aria-label]="'Set budget or edit ' + row.cat.name">
+                      <mat-icon>edit</mat-icon>
+                    </button>
+                    <button mat-icon-button color="warn" (click)="remove(row.cat)" [attr.aria-label]="'Delete category ' + row.cat.name">
+                      <mat-icon>delete</mat-icon>
+                    </button>
+                  </li>
+                }
+              </ul>
+            </section>
+          }
+
+          @if (systemRows().length) {
+            <section aria-labelledby="system-categories-title">
+              <h3 id="system-categories-title" class="mb-3 font-semibold text-ink">Built-in categories</h3>
+              <ul class="m-0 flex list-none flex-wrap gap-2 p-0">
+                @for (row of systemRows(); track row.cat.id) {
+                  <li class="inline-flex min-h-11 items-center rounded-full bg-surface-muted px-3 text-sm text-ink-muted">
+                    {{ row.cat.name }} · read-only
+                  </li>
+                }
+              </ul>
+            </section>
+          }
         </mat-card-content>
       </mat-card>
+      </div>
     </div>
 
     @if (categorySheetOpen()) {
@@ -230,6 +287,8 @@ export class CategoriesComponent {
   private readonly transactionService = inject(TransactionService);
   private readonly dialog = inject(MatDialog);
   private readonly currency = inject(CurrencyPipe);
+  private readonly snack = inject(MatSnackBar);
+  private readonly router = inject(Router);
 
   readonly categorySheetOpen = signal(false);
   readonly editingCategoryId = signal<string | null>(null);
@@ -240,12 +299,29 @@ export class CategoriesComponent {
 
   readonly Math = Math;
   readonly abs = Math.abs;
+  readonly currentMonth = signal(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
 
-  readonly categories = toSignal(this.categoryService.watchCategories(), { initialValue: [] });
-  readonly budgets = toSignal(this.budgetService.watchBudgets(), { initialValue: [] });
-  private readonly transactions = toSignal(this.transactionService.watchAllTransactions(), {
-    initialValue: [],
-  });
+  private readonly categoryState = toLoadableSignal(this.categoryService.watchCategories(), []);
+  private readonly budgetState = toLoadableSignal(this.budgetService.watchBudgets(), []);
+  private readonly transactionState = toLoadableSignal(
+    this.transactionService.watchAllTransactions(),
+    []
+  );
+  readonly categories = this.categoryState.value;
+  readonly budgets = this.budgetState.value;
+  private readonly transactions = this.transactionState.value;
+  readonly initialLoading = computed(
+    () =>
+      this.categoryState.loading() ||
+      this.budgetState.loading() ||
+      this.transactionState.loading()
+  );
+  readonly loadError = computed(
+    () =>
+      this.categoryState.error() ??
+      this.budgetState.error() ??
+      this.transactionState.error()
+  );
 
   readonly categoryForm = this.fb.nonNullable.group({
     name: ['', Validators.required],
@@ -281,6 +357,15 @@ export class CategoriesComponent {
       })
       .sort((a, b) => this.budgetPriority(a) - this.budgetPriority(b) || b.spent - a.spent || a.cat.name.localeCompare(b.cat.name));
   });
+  readonly trackedRows = computed<TrackedCategoryBudgetRow[]>(() =>
+    this.categoryRows().filter(
+      (row): row is TrackedCategoryBudgetRow => !row.cat.isSystem && row.budget !== null
+    )
+  );
+  readonly untrackedRows = computed(() =>
+    this.categoryRows().filter((row) => !row.cat.isSystem && row.budget === null)
+  );
+  readonly systemRows = computed(() => this.categoryRows().filter((row) => row.cat.isSystem));
 
   readonly budgetSummary = computed(() => {
     const rows = this.categoryRows().filter((row) => !row.cat.isSystem && row.monthlyBudgetAmount != null);
@@ -306,13 +391,13 @@ export class CategoriesComponent {
     const label = this.budgetStatusLabel(row);
     switch (label) {
       case 'Over budget':
-        return 'bg-red-100 text-red-700';
+        return 'bg-finance-expenseSoft text-finance-expense';
       case 'Near limit':
-        return 'bg-amber-100 text-amber-800';
+        return 'bg-finance-warningSoft text-finance-warning';
       case 'On track':
-        return 'bg-emerald-100 text-emerald-700';
+        return 'bg-finance-incomeSoft text-finance-income';
       case 'No budget':
-        return 'bg-slate-100 text-slate-700';
+        return 'bg-surface-muted text-ink-muted';
       default:
         return 'bg-action-soft text-action';
     }
@@ -383,6 +468,10 @@ export class CategoriesComponent {
     }
 
     this.cancelCategorySheet();
+    this.snack.open(categoryId ? 'Category and budget updated.' : 'Category added.', 'Dismiss', {
+      duration: 3000,
+      panelClass: ['snackbar-success'],
+    });
   }
 
   private resetCategoryForm(): void {
@@ -400,5 +489,11 @@ export class CategoriesComponent {
     if (!confirmed) return;
     await this.budgetService.remove(cat.id);
     await this.categoryService.remove(cat.id);
+    const ref = this.snack.open(
+      `${cat.name} deleted. Review Activity for transactions that may now show unknown category context.`,
+      'Review Activity',
+      { duration: 8000 }
+    );
+    ref.onAction().subscribe(() => void this.router.navigate(['/transactions']));
   }
 }

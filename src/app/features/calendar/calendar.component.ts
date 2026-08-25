@@ -2,7 +2,7 @@ import { CurrencyPipe, DatePipe } from '@angular/common';
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -38,6 +38,8 @@ import {
   weekDays,
 } from '../../core/utils/calendar.util';
 import { endOfDay, formatDateParam, resolveCurrentWeek, startOfDay } from '../../core/utils/date.util';
+import { clearOneShotQueryParams } from '../../core/utils/one-shot-query.util';
+import { toLoadableSignal } from '../../core/utils/loadable-signal.util';
 import { confirmDialog } from '../../shared/confirm-dialog/confirm-dialog.component';
 import { ModalSheetComponent } from '../../shared/modal-sheet/modal-sheet.component';
 
@@ -72,7 +74,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
     ModalSheetComponent,
   ],
   template: `
-    <div class="calendar-page space-y-6">
+    <div class="calendar-page page-stack">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div class="page-header">
           <h1 class="page-title">Plan</h1>
@@ -81,15 +83,25 @@ const WEEK_DAY_VISIBLE_CAP = 5;
             {{ netWorth() | currency }}
           </p>
         </div>
-        <button mat-flat-button color="primary" type="button" (click)="startNewItem()" [disabled]="scheduleSheetOpen()">
+        <button mat-flat-button color="primary" type="button" class="!hidden sm:!inline-flex" (click)="startNewItem()" [disabled]="scheduleSheetOpen() || initialLoading()">
           <mat-icon>add</mat-icon>
           Add bill or paycheck
         </button>
       </div>
 
+      @if (initialLoading()) {
+        <section class="panel animate-pulse p-6" role="status" aria-live="polite">
+          <p class="font-semibold text-ink">Loading your plan…</p>
+          <p class="mt-1 text-sm text-ink-muted">Waiting for schedules, accounts, and posted activity.</p>
+        </section>
+      }
+      @if (loadError()) {
+        <p class="rounded-2xl border border-finance-expense/20 bg-finance-expenseSoft p-4 text-sm text-finance-expense" role="alert">{{ loadError() }}</p>
+      }
+      <div class="contents" [class.hidden]="initialLoading()">
       <section class="panel">
         <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div>
+          <div class="p-4">
             <p class="kicker">This week</p>
             <h2 class="mt-1 text-xl font-semibold tracking-[-0.02em] text-ink">
               {{ weekSummaryTitle() }}
@@ -107,8 +119,8 @@ const WEEK_DAY_VISIBLE_CAP = 5;
                 </div>
                 <p
                   class="money shrink-0 font-semibold"
-                  [class.text-emerald-700]="nextUpcoming()!.amount > 0"
-                  [class.text-red-600]="nextUpcoming()!.amount < 0"
+                  [class.text-finance-income]="nextUpcoming()!.amount > 0"
+                  [class.text-finance-expense]="nextUpcoming()!.amount < 0"
                 >
                   {{ nextUpcoming()!.amount | currency }}
                 </p>
@@ -117,39 +129,39 @@ const WEEK_DAY_VISIBLE_CAP = 5;
           }
         </div>
 
-        <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div class="metric">
+        <div class="mt-4 grid grid-cols-2 gap-2 sm:mt-5 sm:gap-3 lg:grid-cols-4">
+          <div class="metric !p-3 sm:!p-4">
             <p class="kicker">Upcoming bills</p>
-            <p class="money mt-1 text-2xl font-semibold text-red-600">
+            <p class="money mt-1 text-2xl font-semibold text-finance-expense">
               {{ upcomingBillsTotal() | currency }}
             </p>
             <p class="mt-1 text-xs text-ink-muted">Next 7 days</p>
           </div>
-          <div class="metric">
+          <div class="metric !p-3 sm:!p-4">
             <p class="kicker">Upcoming income</p>
-            <p class="money mt-1 text-2xl font-semibold text-emerald-700">
+            <p class="money mt-1 text-2xl font-semibold text-finance-income">
               {{ upcomingIncomeTotal() | currency }}
             </p>
             <p class="mt-1 text-xs text-ink-muted">Next 7 days</p>
           </div>
           <div
-            class="metric"
-            [class.bg-red-50]="upcomingNet() < 0"
-            [class.border-red-100]="upcomingNet() < 0"
-            [class.bg-emerald-50]="upcomingNet() >= 0"
-            [class.border-emerald-100]="upcomingNet() >= 0"
+            class="metric !p-3 sm:!p-4"
+            [class.bg-finance-expenseSoft]="upcomingNet() < 0"
+            [class.border-finance-expenseSoft]="upcomingNet() < 0"
+            [class.bg-finance-incomeSoft]="upcomingNet() >= 0"
+            [class.border-finance-incomeSoft]="upcomingNet() >= 0"
           >
             <p class="kicker">Scheduled net</p>
             <p
               class="money mt-1 text-2xl font-semibold"
-              [class.text-red-600]="upcomingNet() < 0"
-              [class.text-emerald-700]="upcomingNet() >= 0"
+              [class.text-finance-expense]="upcomingNet() < 0"
+              [class.text-finance-income]="upcomingNet() >= 0"
             >
               {{ upcomingNet() | currency }}
             </p>
             <p class="mt-1 text-xs text-ink-muted">Bills minus income due soon</p>
           </div>
-          <div class="metric">
+          <div class="metric !p-3 sm:!p-4">
             <p class="kicker">Active schedules</p>
             <p class="mt-1 text-2xl font-semibold text-ink">{{ activeScheduledCount() }}</p>
             <p class="mt-1 text-xs text-ink-muted">Bills and paychecks being tracked</p>
@@ -159,7 +171,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
 
       <div class="app-card overflow-hidden p-3 sm:p-4">
         <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div class="flex flex-wrap items-center gap-2">
+          <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             <div
               class="inline-flex overflow-hidden rounded-lg border border-line bg-white shadow-sm"
               role="group"
@@ -167,34 +179,36 @@ const WEEK_DAY_VISIBLE_CAP = 5;
             >
               <button
                 type="button"
-                class="px-4 py-2 text-sm font-semibold transition-colors"
+                class="min-h-11 px-4 py-2 text-sm font-semibold transition-colors"
                 [class.bg-action]="viewMode() === 'month'"
                 [class.text-white]="viewMode() === 'month'"
                 [class.bg-white]="viewMode() !== 'month'"
-                [class.text-slate-600]="viewMode() !== 'month'"
+                [class.text-ink-muted]="viewMode() !== 'month'"
                 (click)="setView('month')"
               >
                 Month
               </button>
               <button
                 type="button"
-                class="border-l border-line px-4 py-2 text-sm font-semibold transition-colors"
+                class="min-h-11 border-l border-line px-4 py-2 text-sm font-semibold transition-colors"
                 [class.bg-action]="viewMode() === 'week'"
                 [class.text-white]="viewMode() === 'week'"
                 [class.bg-white]="viewMode() !== 'week'"
-                [class.text-slate-600]="viewMode() !== 'week'"
+                [class.text-ink-muted]="viewMode() !== 'week'"
                 (click)="setView('week')"
               >
                 Week
               </button>
             </div>
-            <button mat-icon-button type="button" (click)="shiftPeriod(-1)" aria-label="Previous">
-              <mat-icon>chevron_left</mat-icon>
-            </button>
-            <button mat-stroked-button type="button" (click)="goToday()">Today</button>
-            <button mat-icon-button type="button" (click)="shiftPeriod(1)" aria-label="Next">
-              <mat-icon>chevron_right</mat-icon>
-            </button>
+            <div class="grid grid-cols-[44px_1fr_44px] items-center gap-2 sm:flex">
+              <button mat-icon-button type="button" (click)="shiftPeriod(-1)" aria-label="Previous">
+                <mat-icon>chevron_left</mat-icon>
+              </button>
+              <button mat-stroked-button type="button" (click)="goToday()">Today</button>
+              <button mat-icon-button type="button" (click)="shiftPeriod(1)" aria-label="Next">
+                <mat-icon>chevron_right</mat-icon>
+              </button>
+            </div>
           </div>
           <p class="text-sm font-semibold text-ink">{{ periodLabel() }}</p>
         </div>
@@ -211,33 +225,33 @@ const WEEK_DAY_VISIBLE_CAP = 5;
             (eventClicked)="onEventClicked($event)"
           />
         } @else {
-          <div class="mb-4 grid gap-3 sm:grid-cols-3">
-            <div class="rounded-xl border border-red-100 bg-red-50 px-4 py-3">
-              <p class="text-xs font-medium uppercase tracking-wide text-red-700">Spent this week</p>
-              <p class="text-xl font-semibold text-red-600">{{ weekTotals().spent | currency }}</p>
+          <div class="mb-4 grid grid-cols-3 gap-2 sm:gap-3">
+            <div class="rounded-xl border border-finance-expenseSoft bg-finance-expenseSoft px-2 py-3 sm:px-4">
+              <p class="text-xs font-medium uppercase tracking-wide text-finance-expense">Spent this week</p>
+              <p class="money text-sm font-semibold text-finance-expense sm:text-xl">{{ weekTotals().spent | currency }}</p>
             </div>
-            <div class="rounded-xl border border-line bg-action-soft px-4 py-3">
+            <div class="rounded-xl border border-line bg-action-soft px-2 py-3 sm:px-4">
               <p class="text-xs font-medium uppercase tracking-wide text-action">Weekly budget</p>
-              <p class="text-xl font-semibold text-action">{{ weeklyBudgetTotal() | currency }}</p>
-              <p class="mt-0.5 text-xs text-slate-500">Monthly budgets ÷ {{ weeksPerMonth }}</p>
+              <p class="money text-sm font-semibold text-action sm:text-xl">{{ weeklyBudgetTotal() | currency }}</p>
+              <p class="mt-0.5 hidden text-xs text-ink-muted sm:block">Monthly budgets ÷ {{ weeksPerMonth }}</p>
             </div>
             <div
-              class="rounded-xl border px-4 py-3"
+              class="rounded-xl border px-2 py-3 sm:px-4"
               [class]="
                 remainingBudget() < 0
-                  ? 'border-red-100 bg-red-50'
-                  : 'border-emerald-100 bg-emerald-50'
+                  ? 'border-finance-expenseSoft bg-finance-expenseSoft'
+                  : 'border-finance-incomeSoft bg-finance-incomeSoft'
               "
             >
               <p
                 class="text-xs font-medium uppercase tracking-wide"
-                [class]="remainingBudget() < 0 ? 'text-red-700' : 'text-emerald-700'"
+                [class]="remainingBudget() < 0 ? 'text-finance-expense' : 'text-finance-income'"
               >
                 {{ remainingBudget() < 0 ? 'Over budget' : 'Remaining' }}
               </p>
               <p
-                class="text-xl font-semibold"
-                [class]="remainingBudget() < 0 ? 'text-red-600' : 'text-emerald-700'"
+                class="money text-sm font-semibold sm:text-xl"
+                [class]="remainingBudget() < 0 ? 'text-finance-expense' : 'text-finance-income'"
               >
                 {{ abs(remainingBudget()) | currency }}
               </p>
@@ -252,19 +266,19 @@ const WEEK_DAY_VISIBLE_CAP = 5;
               >
                 <button
                   type="button"
-                  class="mb-2 w-full text-left"
+                  class="mb-2 min-h-11 w-full text-left"
                   (click)="selectDay(day)"
                 >
-                  <p class="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  <p class="text-xs font-medium uppercase tracking-wide text-ink-muted">
                     {{ day | date: 'EEE' }}
                   </p>
                   <div class="flex items-baseline justify-between gap-2">
                     <p class="text-lg font-semibold text-ink">{{ day | date: 'd' }}</p>
                     <p
                       class="text-xs font-semibold"
-                      [class.text-emerald-600]="dayNetFor(day) > 0"
-                      [class.text-red-600]="dayNetFor(day) < 0"
-                      [class.text-slate-400]="dayNetFor(day) === 0"
+                      [class.text-finance-income]="dayNetFor(day) > 0"
+                      [class.text-finance-expense]="dayNetFor(day) < 0"
+                      [class.text-ink-soft]="dayNetFor(day) === 0"
                     >
                       {{ dayNetFor(day) | currency }}
                     </p>
@@ -281,14 +295,14 @@ const WEEK_DAY_VISIBLE_CAP = 5;
                       <p class="font-semibold">{{ occ.amount | currency }}</p>
                     </li>
                   } @empty {
-                    <li class="py-4 text-center text-xs text-slate-400">No activity</li>
+                    <li class="py-4 text-center text-xs text-ink-soft">No activity</li>
                   }
                 </ul>
 
                 @if (weekOverflowCount(day) > 0) {
                   <button
                     type="button"
-                    class="mt-2 w-full rounded-md py-1.5 text-xs font-medium text-action hover:bg-action-soft"
+                    class="mt-2 min-h-11 w-full rounded-md py-1.5 text-xs font-medium text-action hover:bg-action-soft"
                     (click)="selectDay(day)"
                   >
                     + {{ weekOverflowCount(day) }} more
@@ -321,21 +335,21 @@ const WEEK_DAY_VISIBLE_CAP = 5;
                 <li class="flex items-center justify-between gap-3 px-4 py-3">
                   <div class="min-w-0">
                     <p class="truncate font-medium text-ink">{{ occ.title }}</p>
-                    <p class="text-xs text-slate-500">
+                    <p class="text-xs text-ink-muted">
                       {{ occ.kind }} ·
-                      {{ occ.source === 'scheduled' ? 'Scheduled' : 'Posted' }}
+                      {{ occ.source === 'scheduled' ? 'Scheduled — not posted yet' : 'Posted transaction' }}
                     </p>
                   </div>
                   <span
                     class="shrink-0 font-semibold"
-                    [class.text-emerald-600]="occ.amount > 0"
-                    [class.text-red-600]="occ.amount < 0"
+                    [class.text-finance-income]="occ.amount > 0"
+                    [class.text-finance-expense]="occ.amount < 0"
                   >
                     {{ occ.amount | currency }}
                   </span>
                 </li>
               } @empty {
-                <li class="px-4 py-6 text-center text-sm text-slate-500">
+                <li class="px-4 py-6 text-center text-sm text-ink-muted">
                   Nothing planned or posted for this day.
                 </li>
               }
@@ -353,7 +367,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
             }
 
             <div class="mt-4">
-              <p class="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+              <p class="mb-2 text-xs font-medium uppercase tracking-wide text-ink-muted">
                 Upcoming 7 days (scheduled)
               </p>
               <ul class="m-0 list-none space-y-2 p-0">
@@ -361,18 +375,18 @@ const WEEK_DAY_VISIBLE_CAP = 5;
                   <li class="flex items-start justify-between gap-2 text-sm">
                     <div class="min-w-0">
                       <p class="truncate font-medium text-ink">{{ occ.title }}</p>
-                      <p class="text-xs text-slate-500">{{ occ.date | date: 'EEE, MMM d' }}</p>
+                      <p class="text-xs text-ink-muted">{{ occ.date | date: 'EEE, MMM d' }}</p>
                     </div>
                     <span
                       class="shrink-0 font-medium"
-                      [class.text-emerald-600]="occ.amount > 0"
-                      [class.text-red-600]="occ.amount < 0"
+                      [class.text-finance-income]="occ.amount > 0"
+                      [class.text-finance-expense]="occ.amount < 0"
                     >
                       {{ occ.amount | currency }}
                     </span>
                   </li>
                 } @empty {
-                  <li class="rounded-xl border border-line bg-surface px-3 py-3 text-sm text-slate-500">
+                  <li class="rounded-xl border border-line bg-surface px-3 py-3 text-sm text-ink-muted">
                     Nothing scheduled in the next 7 days. Add bills, subscriptions, or income to plan ahead.
                   </li>
                 }
@@ -381,25 +395,27 @@ const WEEK_DAY_VISIBLE_CAP = 5;
           </mat-card-content>
         </mat-card>
 
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <h2 class="text-base font-semibold text-ink">Scheduled bills & paychecks</h2>
-            <p class="text-sm text-slate-500">Keep predictable money movement visible before it happens.</p>
+        <section class="space-y-3">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <h2 class="text-base font-semibold text-ink">Scheduled bills & paychecks</h2>
+              <p class="text-sm text-ink-muted">{{ activeScheduledCount() }} active · {{ scheduled().length }} total</p>
+            </div>
+            @if (!scheduleSheetOpen()) {
+              <button mat-flat-button color="primary" type="button" (click)="startNewItem()">
+                <mat-icon>add</mat-icon>
+                Add item
+              </button>
+            }
           </div>
-          @if (!scheduleSheetOpen()) {
-            <button mat-flat-button color="primary" type="button" (click)="startNewItem()">
-              <mat-icon>add</mat-icon>
-              Add item
-            </button>
-          }
-        </div>
 
-      <mat-card class="app-card">
-        <mat-card-header>
-          <mat-card-title class="!text-base !text-ink">Scheduled bills & paychecks</mat-card-title>
-          <mat-card-subtitle>{{ activeScheduledCount() }} active · {{ scheduled().length }} total</mat-card-subtitle>
-        </mat-card-header>
-        <mat-card-content>
+          <mat-card class="app-card">
+            <mat-card-content>
+              <p class="mb-3 rounded-xl border border-line bg-action-soft/40 px-3 py-2 text-sm text-ink-muted">
+                Saving an active schedule posts its next occurrence to Activity with the due date.
+                A posted (fulfilled) occurrence replaces the planned one so it is not counted twice.
+                Deleting the schedule does not remove transactions already posted.
+              </p>
           <ul
             class="m-0 list-none divide-y divide-line overflow-hidden rounded-xl border border-line p-0"
           >
@@ -409,10 +425,10 @@ const WEEK_DAY_VISIBLE_CAP = 5;
                   <p class="truncate text-sm font-medium text-ink">
                     {{ item.title }}
                     @if (!item.isActive) {
-                      <span class="ml-1 text-xs text-slate-400">(paused)</span>
+                      <span class="ml-1 text-xs text-ink-soft">(paused)</span>
                     }
                   </p>
-                  <p class="text-xs text-slate-500">
+                  <p class="text-xs text-ink-muted">
                     {{ item.kind }} · {{ scheduleLabel(item) }} · {{ item.amount | currency }}
                   </p>
                 </div>
@@ -430,19 +446,22 @@ const WEEK_DAY_VISIBLE_CAP = 5;
                 </button>
               </li>
             } @empty {
-              <li class="px-4 py-5 text-center text-sm text-slate-500">
+              <li class="px-4 py-5 text-center text-sm text-ink-muted">
                 No scheduled items yet. Add rent, paychecks, subscriptions, or one-time bills to plan ahead.
               </li>
             }
           </ul>
-        </mat-card-content>
-      </mat-card>
+            </mat-card-content>
+          </mat-card>
+        </section>
+      </div>
+      </div>
     </div>
 
     @if (scheduleSheetOpen()) {
       <app-modal-sheet
         [title]="editingId() ? 'Edit scheduled item' : 'Add bill / paycheck'"
-        subtitle="Saving creates matching transactions on scheduled dates so balances and reports stay current."
+        subtitle="Saving an active item posts its next occurrence to Activity. Posted (fulfilled) occurrences remain there even if this schedule is later deleted."
         [ariaLabel]="editingId() ? 'Edit scheduled item' : 'Add bill or paycheck'"
         (closed)="cancelEdit()"
       >
@@ -566,6 +585,7 @@ export class CalendarComponent {
   private readonly snack = inject(MatSnackBar);
   private readonly dialog = inject(MatDialog);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly scheduledService = inject(ScheduledItemService);
   private readonly transactionService = inject(TransactionService);
   private readonly accountService = inject(AccountService);
@@ -583,13 +603,43 @@ export class CalendarComponent {
   readonly weeksPerMonth = WEEKS_PER_MONTH;
   readonly abs = Math.abs;
 
-  readonly accounts = toSignal(this.accountService.watchAccounts(), { initialValue: [] });
-  readonly categories = toSignal(this.categoryService.watchCategories(), { initialValue: [] });
-  readonly scheduled = toSignal(this.scheduledService.watchScheduledItems(), { initialValue: [] });
-  private readonly budgets = toSignal(this.budgetService.watchBudgets(), { initialValue: [] });
-  private readonly transactions = toSignal(this.transactionService.watchAllTransactions(), {
-    initialValue: [],
-  });
+  private readonly accountState = toLoadableSignal(this.accountService.watchAccounts(), []);
+  private readonly categoryState = toLoadableSignal(this.categoryService.watchCategories(), []);
+  private readonly scheduledState = toLoadableSignal(
+    this.scheduledService.watchScheduledItems(),
+    []
+  );
+  private readonly budgetState = toLoadableSignal(this.budgetService.watchBudgets(), []);
+  private readonly transactionState = toLoadableSignal(
+    this.transactionService.watchAllTransactions(),
+    []
+  );
+  readonly accounts = this.accountState.value;
+  readonly categories = this.categoryState.value;
+  readonly scheduled = this.scheduledState.value;
+  private readonly budgets = this.budgetState.value;
+  private readonly transactions = this.transactionState.value;
+  readonly initialLoading = computed(() =>
+    [
+      this.accountState,
+      this.categoryState,
+      this.scheduledState,
+      this.budgetState,
+      this.transactionState,
+    ].some((state) => state.loading())
+  );
+  readonly loadError = computed(
+    () =>
+      [
+        this.accountState,
+        this.categoryState,
+        this.scheduledState,
+        this.budgetState,
+        this.transactionState,
+      ]
+        .map((state) => state.error())
+        .find((message): message is string => !!message) ?? null
+  );
 
   readonly userCategories = computed(() => this.categories().filter((c) => !c.isSystem));
   readonly netWorth = computed(() => computeNetWorth(this.accounts(), this.transactions()));
@@ -766,6 +816,12 @@ export class CalendarComponent {
   });
 
   constructor() {
+    this.route.queryParamMap.subscribe((params) => {
+      if (params.get('action') !== 'add') return;
+      queueMicrotask(() => this.startNewItem());
+      void clearOneShotQueryParams(this.router, this.route, ['action']);
+    });
+
     effect(() => {
       const accounts = this.accounts();
       if (this.form.controls.accountId.value || !accounts.length) return;
@@ -840,12 +896,12 @@ export class CalendarComponent {
   occChipClass(occ: CalendarOccurrence): string {
     if (occ.source === 'scheduled') {
       return occ.kind === 'income'
-        ? 'border border-dashed border-emerald-300 bg-emerald-50/50 text-emerald-900'
-        : 'border border-dashed border-red-300 bg-red-50/50 text-red-900';
+        ? 'border border-dashed border-finance-income bg-finance-incomeSoft text-finance-income'
+        : 'border border-dashed border-finance-expense bg-finance-expenseSoft text-finance-expense';
     }
     return occ.kind === 'income'
-      ? 'bg-emerald-50 text-emerald-900'
-      : 'bg-red-50 text-red-900';
+      ? 'bg-finance-incomeSoft text-finance-income'
+      : 'bg-finance-expenseSoft text-finance-expense';
   }
 
   weekDayColumnClass(day: Date): string {
@@ -886,6 +942,21 @@ export class CalendarComponent {
   }
 
   startNewItem(): void {
+    if (this.initialLoading()) {
+      this.snack.open('Accounts are still loading. Try again in a moment.', 'Dismiss', {
+        duration: 3000,
+      });
+      return;
+    }
+    if (!this.accounts().length) {
+      const ref = this.snack.open(
+        'Add an account before scheduling a bill or paycheck.',
+        'Go to Accounts',
+        { duration: 7000 }
+      );
+      ref.onAction().subscribe(() => void this.router.navigate(['/accounts']));
+      return;
+    }
     this.cancelEdit();
     this.showScheduleForm.set(true);
   }
@@ -929,7 +1000,25 @@ export class CalendarComponent {
   }
 
   async saveItem(): Promise<void> {
-    if (this.form.invalid || this.saving()) return;
+    const accountId = this.form.controls.accountId.value;
+    if (
+      this.form.invalid ||
+      this.saving() ||
+      !this.accounts().some((account) => account.id === accountId)
+    ) {
+      if (!this.accounts().length) {
+        this.cancelEdit();
+        const ref = this.snack.open(
+          'This schedule needs an account. Add one, then try again.',
+          'Go to Accounts',
+          { duration: 7000 }
+        );
+        ref.onAction().subscribe(() => void this.router.navigate(['/accounts']));
+      } else {
+        this.form.markAllAsTouched();
+      }
+      return;
+    }
     this.saving.set(true);
     const v = this.form.getRawValue();
     const input: ScheduledItemInput = {
@@ -954,7 +1043,10 @@ export class CalendarComponent {
       const id = this.editingId();
       if (id) {
         await this.scheduledService.update(id, input);
-        this.snack.open('Updated scheduled item', 'OK', { duration: 2500 });
+        this.snack.open('Updated scheduled item', 'OK', {
+          duration: 2500,
+          panelClass: ['snackbar-success'],
+        });
       } else {
         const scheduledId = await this.scheduledService.create(input);
         const postingDate = resolveScheduledPostingDate({
@@ -989,7 +1081,7 @@ export class CalendarComponent {
           const ref = this.snack.open(
             `Saved and posted ${v.kind} to Transactions · balances updated`,
             'View',
-            { duration: 4000 }
+            { duration: 4000, panelClass: ['snackbar-success'] }
           );
           ref.onAction().subscribe(() => {
             void this.router.navigate(['/transactions'], {
@@ -1001,7 +1093,10 @@ export class CalendarComponent {
             });
           });
         } else {
-          this.snack.open('Saved scheduled item', 'OK', { duration: 2500 });
+          this.snack.open('Saved scheduled item', 'OK', {
+            duration: 2500,
+            panelClass: ['snackbar-success'],
+          });
         }
       }
       this.cancelEdit();
@@ -1010,7 +1105,7 @@ export class CalendarComponent {
       this.snack.open(
         'Could not save — check account selection and Firestore permissions',
         'Dismiss',
-        { duration: 8000 }
+        { duration: 8000, panelClass: ['snackbar-error'] }
       );
     } finally {
       this.saving.set(false);
@@ -1031,7 +1126,10 @@ export class CalendarComponent {
       if (this.editingId() === item.id) this.cancelEdit();
     } catch (err) {
       console.error(err);
-      this.snack.open('Could not delete item (permissions?)', 'Dismiss', { duration: 5000 });
+      this.snack.open('Could not delete item (permissions?)', 'Dismiss', {
+        duration: 5000,
+        panelClass: ['snackbar-error'],
+      });
     }
   }
 }

@@ -8,6 +8,36 @@ import { MatInputModule } from '@angular/material/input';
 import { MatTabsModule } from '@angular/material/tabs';
 import { AuthService } from '../../core/services/auth.service';
 
+export function friendlyAuthError(error: unknown): string {
+  const candidate = error as { code?: unknown; message?: unknown } | null;
+  const code = typeof candidate?.code === 'string' ? candidate.code : '';
+
+  switch (code) {
+    case 'auth/invalid-credential':
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+      return 'Email or password is incorrect. Check both fields and try again.';
+    case 'auth/email-already-in-use':
+      return 'An account already uses this email. Sign in instead, or use another email.';
+    case 'auth/weak-password':
+      return 'Choose a stronger password with at least 6 characters.';
+    case 'auth/invalid-email':
+      return 'Enter a valid email address.';
+    case 'auth/too-many-requests':
+      return 'Too many attempts. Wait a few minutes, then try again.';
+    case 'auth/network-request-failed':
+      return 'Could not reach the sign-in service. Check your connection and try again.';
+    case 'auth/operation-not-allowed':
+      return 'Email sign-in is not available right now. Contact support.';
+  }
+
+  const message = typeof candidate?.message === 'string' ? candidate.message : '';
+  if (/network|offline|connection/i.test(message)) {
+    return 'Could not reach the sign-in service. Check your connection and try again.';
+  }
+  return 'Authentication failed. Check your details and try again.';
+}
+
 @Component({
   selector: 'app-auth',
   standalone: true,
@@ -79,7 +109,7 @@ import { AuthService } from '../../core/services/auth.service';
                     }
                   </mat-form-field>
                   @if (error()) {
-                    <p class="rounded-2xl border border-finance-expense/20 bg-finance-expenseSoft px-4 py-3 text-sm text-finance-expense">{{ error() }}</p>
+                    <p role="alert" aria-live="assertive" class="rounded-2xl border border-finance-expense/20 bg-finance-expenseSoft px-4 py-3 text-sm text-finance-expense">{{ error() }}</p>
                   }
                   <button mat-flat-button color="primary" class="!h-12 !w-full" type="submit" [disabled]="loading()">
                     {{ loading() ? 'Signing in…' : 'Sign in' }}
@@ -103,7 +133,7 @@ import { AuthService } from '../../core/services/auth.service';
                     }
                   </mat-form-field>
                   @if (error()) {
-                    <p class="rounded-2xl border border-finance-expense/20 bg-finance-expenseSoft px-4 py-3 text-sm text-finance-expense">{{ error() }}</p>
+                    <p role="alert" aria-live="assertive" class="rounded-2xl border border-finance-expense/20 bg-finance-expenseSoft px-4 py-3 text-sm text-finance-expense">{{ error() }}</p>
                   }
                   <button mat-flat-button color="primary" class="!h-12 !w-full" type="submit" [disabled]="loading()">
                     {{ loading() ? 'Creating account…' : 'Create account' }}
@@ -140,12 +170,18 @@ export class AuthComponent {
   });
 
   async signIn(): Promise<void> {
-    if (this.signInForm.invalid) return;
+    if (this.signInForm.invalid) {
+      this.signInForm.markAllAsTouched();
+      return;
+    }
     await this.runAuth(() => this.auth.signIn(this.signInForm.value.email!, this.signInForm.value.password!));
   }
 
   async signUp(): Promise<void> {
-    if (this.signUpForm.invalid) return;
+    if (this.signUpForm.invalid) {
+      this.signUpForm.markAllAsTouched();
+      return;
+    }
     await this.runAuth(() => this.auth.signUp(this.signUpForm.value.email!, this.signUpForm.value.password!));
   }
 
@@ -156,7 +192,7 @@ export class AuthComponent {
       await action();
       await this.router.navigate(['/dashboard']);
     } catch (e: unknown) {
-      this.error.set(e instanceof Error ? e.message : 'Authentication failed');
+      this.error.set(friendlyAuthError(e));
     } finally {
       this.loading.set(false);
     }

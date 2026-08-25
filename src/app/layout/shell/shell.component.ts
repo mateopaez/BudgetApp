@@ -6,6 +6,9 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatListModule } from '@angular/material/list';
 import { MatMenuModule } from '@angular/material/menu';
+import { BreakpointObserver } from '@angular/cdk/layout';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { map } from 'rxjs';
 import { AccountService } from '../../core/services/account.service';
 import { AuthService } from '../../core/services/auth.service';
 import { CategoryService } from '../../core/services/category.service';
@@ -28,12 +31,14 @@ import { CategoryService } from '../../core/services/category.service';
     <mat-sidenav-container class="min-h-screen bg-canvas">
       <mat-sidenav
         #drawer
-        mode="over"
+        [mode]="isDesktop() ? 'side' : 'over'"
+        [opened]="isDesktop()"
+        [disableClose]="isDesktop()"
         class="!w-72"
-        fixedInViewport
+        [fixedInViewport]="!isDesktop()"
         [autoFocus]="false"
       >
-        <div class="flex h-full flex-col bg-surface">
+        <div class="app-drawer-content flex h-full flex-col bg-surface">
           <div class="border-b border-line px-5 py-6">
             <p class="text-lg font-bold tracking-[-0.02em] text-ink">BudgetApp</p>
             <p class="mt-1 truncate text-xs text-ink-muted">{{ auth.user()?.email }}</p>
@@ -44,9 +49,11 @@ import { CategoryService } from '../../core/services/category.service';
               <a
                 mat-list-item
                 [routerLink]="item.path"
+                #primaryNavActive="routerLinkActive"
                 routerLinkActive="active-nav"
                 [routerLinkActiveOptions]="{ exact: true }"
-                (click)="drawer.close()"
+                [attr.aria-current]="primaryNavActive.isActive ? 'page' : null"
+                (click)="closeDrawerOnMobile(drawer)"
               >
                 <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
                 <span matListItemTitle>{{ item.label }}</span>
@@ -60,9 +67,11 @@ import { CategoryService } from '../../core/services/category.service';
               <a
                 mat-list-item
                 [routerLink]="item.path"
+                #secondaryNavActive="routerLinkActive"
                 routerLinkActive="active-nav"
                 [routerLinkActiveOptions]="{ exact: true }"
-                (click)="drawer.close()"
+                [attr.aria-current]="secondaryNavActive.isActive ? 'page' : null"
+                (click)="closeDrawerOnMobile(drawer)"
               >
                 <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
                 <span matListItemTitle>{{ item.label }}</span>
@@ -77,8 +86,13 @@ import { CategoryService } from '../../core/services/category.service';
       </mat-sidenav>
 
       <mat-sidenav-content class="min-h-screen bg-canvas">
-        <mat-toolbar class="sticky top-0 z-20 !h-16 !shadow-none">
-          <button mat-icon-button (click)="drawer.toggle()" aria-label="Open navigation">
+        <mat-toolbar class="app-toolbar sticky top-0 z-20 !shadow-none">
+          <button
+            mat-icon-button
+            class="!h-11 !w-11 lg:!hidden"
+            (click)="drawer.toggle()"
+            aria-label="Open navigation"
+          >
             <mat-icon>menu</mat-icon>
           </button>
           <span class="ml-2 text-base font-semibold tracking-[-0.02em]">BudgetApp</span>
@@ -107,20 +121,22 @@ import { CategoryService } from '../../core/services/category.service';
           </mat-menu>
         </mat-toolbar>
 
-        <main class="mx-auto max-w-7xl p-4 pb-28 sm:p-6 lg:pb-8">
+        <main class="app-main-content mx-auto max-w-7xl p-4 sm:p-6">
           <router-outlet />
         </main>
 
         <nav
-          class="fixed inset-x-3 bottom-3 z-30 grid grid-cols-4 rounded-3xl border border-line bg-surface/95 p-1 shadow-floating backdrop-blur lg:hidden"
+          class="app-bottom-nav fixed inset-x-3 z-30 grid grid-cols-4 rounded-3xl border border-line bg-surface/95 p-1 shadow-floating backdrop-blur lg:hidden"
           aria-label="Primary navigation"
         >
           @for (item of primaryNav; track item.path) {
             <a
               class="flex min-h-14 flex-col items-center justify-center rounded-2xl px-1 text-xs font-medium text-ink-muted transition hover:bg-action-soft/50"
               [routerLink]="item.path"
+              #mobileNavActive="routerLinkActive"
               routerLinkActive="!bg-action-soft !text-ink"
               [routerLinkActiveOptions]="{ exact: true }"
+              [attr.aria-current]="mobileNavActive.isActive ? 'page' : null"
             >
               <mat-icon class="!text-[20px]">{{ item.icon }}</mat-icon>
               <span>{{ item.label }}</span>
@@ -131,7 +147,7 @@ import { CategoryService } from '../../core/services/category.service';
         <button
           mat-fab
           color="primary"
-          class="!fixed !bottom-24 !right-4 !z-30 sm:!hidden"
+          class="app-quick-add-fab !fixed !right-4 !z-30 sm:!hidden"
           [matMenuTriggerFor]="quickAdd"
           aria-label="Add or import"
         >
@@ -143,18 +159,23 @@ import { CategoryService } from '../../core/services/category.service';
 })
 export class ShellComponent implements OnInit {
   readonly auth = inject(AuthService);
+  private readonly breakpointObserver = inject(BreakpointObserver);
   private readonly accountService = inject(AccountService);
   private readonly categoryService = inject(CategoryService);
+  readonly isDesktop = toSignal(
+    this.breakpointObserver.observe('(min-width: 1024px)').pipe(map((result) => result.matches)),
+    { initialValue: false },
+  );
 
   readonly primaryNav = [
     { path: '/dashboard', label: 'Home', icon: 'home' },
     { path: '/transactions', label: 'Activity', icon: 'receipt_long' },
     { path: '/calendar', label: 'Plan', icon: 'event' },
-    { path: '/accounts', label: 'Accounts', icon: 'account_balance_wallet' },
+    { path: '/categories', label: 'Budgets', icon: 'donut_large' },
   ];
 
   readonly secondaryNav = [
-    { path: '/categories', label: 'Budgets', icon: 'donut_large' },
+    { path: '/accounts', label: 'Accounts', icon: 'account_balance_wallet' },
   ];
 
   ngOnInit(): void {
@@ -164,5 +185,11 @@ export class ShellComponent implements OnInit {
 
   signOut(): void {
     void this.auth.signOut();
+  }
+
+  closeDrawerOnMobile(drawer: { close: () => Promise<unknown> }): void {
+    if (!this.isDesktop()) {
+      void drawer.close();
+    }
   }
 }
