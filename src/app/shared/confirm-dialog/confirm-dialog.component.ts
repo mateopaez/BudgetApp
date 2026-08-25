@@ -22,7 +22,7 @@ export interface ConfirmDialogData {
       <h2 mat-dialog-title class="!flex !items-center !gap-3 !text-ink">
         <span
           class="grid h-10 w-10 shrink-0 place-items-center rounded-full"
-          [class]="data.tone === 'danger' ? 'bg-red-50 text-red-700' : 'bg-action-soft text-action'"
+          [class]="data.tone === 'danger' ? 'bg-finance-expenseSoft text-finance-expense' : 'bg-action-soft text-action'"
           aria-hidden="true"
         >
           <mat-icon>{{ data.tone === 'danger' ? 'warning' : 'help_outline' }}</mat-icon>
@@ -62,6 +62,7 @@ export class ConfirmDialogComponent {
 export async function confirmDialog(dialog: MatDialog, data: ConfirmDialogData): Promise<boolean> {
   const ref = dialog.open(ConfirmDialogComponent, {
     width: 'min(92vw, 420px)',
+    panelClass: 'app-dialog-panel',
     data,
     autoFocus: false,
     restoreFocus: true,

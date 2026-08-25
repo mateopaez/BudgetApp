@@ -26,14 +26,8 @@ import { CategoryService } from '../../core/services/category.service';
   ],
   template: `
     <mat-sidenav-container class="min-h-screen bg-canvas">
-      <mat-sidenav
-        #drawer
-        mode="over"
-        class="!w-72"
-        fixedInViewport
-        [autoFocus]="false"
-      >
-        <div class="flex h-full flex-col bg-surface">
+      <mat-sidenav #drawer mode="over" class="!w-72" fixedInViewport [autoFocus]="false">
+        <div class="app-drawer-content flex h-full flex-col bg-surface">
           <div class="border-b border-line px-5 py-6">
             <p class="text-lg font-bold tracking-[-0.02em] text-ink">BudgetApp</p>
             <p class="mt-1 truncate text-xs text-ink-muted">{{ auth.user()?.email }}</p>
@@ -44,8 +38,10 @@ import { CategoryService } from '../../core/services/category.service';
               <a
                 mat-list-item
                 [routerLink]="item.path"
+                #primaryNavActive="routerLinkActive"
                 routerLinkActive="active-nav"
                 [routerLinkActiveOptions]="{ exact: true }"
+                [attr.aria-current]="primaryNavActive.isActive ? 'page' : null"
                 (click)="drawer.close()"
               >
                 <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
@@ -60,8 +56,10 @@ import { CategoryService } from '../../core/services/category.service';
               <a
                 mat-list-item
                 [routerLink]="item.path"
+                #secondaryNavActive="routerLinkActive"
                 routerLinkActive="active-nav"
                 [routerLinkActiveOptions]="{ exact: true }"
+                [attr.aria-current]="secondaryNavActive.isActive ? 'page' : null"
                 (click)="drawer.close()"
               >
                 <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
@@ -77,12 +75,18 @@ import { CategoryService } from '../../core/services/category.service';
       </mat-sidenav>
 
       <mat-sidenav-content class="min-h-screen bg-canvas">
-        <mat-toolbar class="sticky top-0 z-20 !h-16 !shadow-none">
-          <button mat-icon-button (click)="drawer.toggle()" aria-label="Open navigation">
-            <mat-icon>menu</mat-icon>
-          </button>
-          <span class="ml-2 text-base font-semibold tracking-[-0.02em]">BudgetApp</span>
-          <span class="flex-1"></span>
+        <mat-toolbar class="app-toolbar sticky top-0 z-20 !shadow-none">
+          <div class="flex min-w-0 flex-1 items-center gap-1">
+            <button
+              mat-icon-button
+              class="!inline-flex !h-10 !w-10 !shrink-0 !items-center !justify-center"
+              (click)="drawer.toggle()"
+              aria-label="Open navigation"
+            >
+              <mat-icon>menu</mat-icon>
+            </button>
+            <span class="truncate text-base font-semibold leading-none tracking-[-0.02em]">BudgetApp</span>
+          </div>
           <button mat-flat-button color="primary" [matMenuTriggerFor]="quickAdd" class="!hidden sm:!inline-flex">
             <mat-icon>add</mat-icon>
             Add
@@ -107,20 +111,22 @@ import { CategoryService } from '../../core/services/category.service';
           </mat-menu>
         </mat-toolbar>
 
-        <main class="mx-auto max-w-7xl p-4 pb-28 sm:p-6 lg:pb-8">
+        <main class="app-main-content mx-auto max-w-7xl p-4 sm:p-6">
           <router-outlet />
         </main>
 
         <nav
-          class="fixed inset-x-3 bottom-3 z-30 grid grid-cols-4 rounded-3xl border border-line bg-surface/95 p-1 shadow-floating backdrop-blur lg:hidden"
+          class="app-bottom-nav fixed inset-x-3 z-30 grid grid-cols-4 rounded-3xl border border-line bg-surface/95 p-1 shadow-floating backdrop-blur lg:hidden"
           aria-label="Primary navigation"
         >
           @for (item of primaryNav; track item.path) {
             <a
               class="flex min-h-14 flex-col items-center justify-center rounded-2xl px-1 text-xs font-medium text-ink-muted transition hover:bg-action-soft/50"
               [routerLink]="item.path"
+              #mobileNavActive="routerLinkActive"
               routerLinkActive="!bg-action-soft !text-ink"
               [routerLinkActiveOptions]="{ exact: true }"
+              [attr.aria-current]="mobileNavActive.isActive ? 'page' : null"
             >
               <mat-icon class="!text-[20px]">{{ item.icon }}</mat-icon>
               <span>{{ item.label }}</span>
@@ -131,7 +137,7 @@ import { CategoryService } from '../../core/services/category.service';
         <button
           mat-fab
           color="primary"
-          class="!fixed !bottom-24 !right-4 !z-30 sm:!hidden"
+          class="app-quick-add-fab !fixed !right-4 !z-30 sm:!hidden"
           [matMenuTriggerFor]="quickAdd"
           aria-label="Add or import"
         >
@@ -150,11 +156,11 @@ export class ShellComponent implements OnInit {
     { path: '/dashboard', label: 'Home', icon: 'home' },
     { path: '/transactions', label: 'Activity', icon: 'receipt_long' },
     { path: '/calendar', label: 'Plan', icon: 'event' },
-    { path: '/accounts', label: 'Accounts', icon: 'account_balance_wallet' },
+    { path: '/categories', label: 'Budgets', icon: 'donut_large' },
   ];
 
   readonly secondaryNav = [
-    { path: '/categories', label: 'Budgets', icon: 'donut_large' },
+    { path: '/accounts', label: 'Accounts', icon: 'account_balance_wallet' },
   ];
 
   ngOnInit(): void {

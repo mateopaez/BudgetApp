@@ -5,7 +5,11 @@ module.exports = {
     extend: {
       colors: {
         canvas: '#F7F4EF',
-        surface: '#FFFFFF',
+        surface: {
+          DEFAULT: '#FFFFFF',
+          raised: '#FFFCF7',
+          muted: '#F1EDE6',
+        },
         ink: {
           DEFAULT: '#14211F',
           muted: '#66736F',
@@ -26,29 +30,6 @@ module.exports = {
           savingSoft: '#E0F2FE',
           warning: '#B45309',
           warningSoft: '#FEF3C7',
-        },
-        // Back-compat while feature templates are migrated.
-        brand: {
-          50: '#ECFDF5',
-          100: '#CCFBF1',
-          200: '#99F6E4',
-          300: '#5EEAD4',
-          400: '#2DD4BF',
-          500: '#14B8A6',
-          600: '#0F766E',
-          700: '#115E59',
-          800: '#134E4A',
-          900: '#14211F',
-          950: '#0B1715',
-        },
-        midnight: {
-          DEFAULT: '#14211F',
-          50: '#F7F4EF',
-          100: '#EFE8DC',
-          200: '#DED8CE',
-          800: '#25312F',
-          900: '#14211F',
-          950: '#0B1715',
         },
       },
       boxShadow: {

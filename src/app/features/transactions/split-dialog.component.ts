@@ -46,7 +46,7 @@ export interface SplitDialogData {
             <p class="kicker">Remaining</p>
             <p
               class="money text-lg font-semibold"
-              [class]="remainingAmount() === 0 ? 'text-finance-income' : remainingAmount() < 0 ? 'text-red-600' : 'text-finance-warning'"
+              [class]="remainingAmount() === 0 ? 'text-finance-income' : remainingAmount() < 0 ? 'text-finance-expense' : 'text-finance-warning'"
             >
               {{ remainingAmount() | currency }}
             </p>
@@ -114,7 +114,7 @@ export interface SplitDialogData {
         </div>
 
         @if (sumError()) {
-          <p class="rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p class="rounded-xl border border-finance-expenseSoft bg-finance-expenseSoft px-3 py-2 text-sm text-finance-expense">
             @if (remainingAmount() > 0) {
               Assign {{ remainingAmount() | currency }} more before saving.
             } @else {
@@ -122,7 +122,7 @@ export interface SplitDialogData {
             }
           </p>
         } @else {
-          <p class="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          <p class="rounded-xl border border-finance-incomeSoft bg-finance-incomeSoft px-3 py-2 text-sm text-finance-income">
             Fully allocated.
           </p>
         }

@@ -9,34 +9,38 @@ import {
   viewChild,
 } from '@angular/core';
 import { Chart, ChartConfiguration, ChartEvent, ActiveElement, registerables } from 'chart.js';
+import { chartCssVariable } from '../chart-colors.util';
 
 Chart.register(...registerables);
 
-const PALETTE = [
-  '#0F766E',
-  '#2563EB',
-  '#B45309',
-  '#7C2D12',
-  '#475569',
-  '#15803D',
-  '#0369A1',
-  '#64748B',
-  '#92400E',
-  '#115E59',
+const PALETTE_VARIABLES = [
+  '--chart-series-1',
+  '--chart-series-2',
+  '--chart-series-3',
+  '--chart-series-4',
+  '--chart-series-5',
+  '--chart-series-6',
+  '--chart-series-7',
+  '--chart-series-8',
 ];
 
 @Component({
   selector: 'app-chart-donut',
   standalone: true,
-  host: { class: 'block' },
+  host: { class: 'block w-full min-w-0 max-w-full' },
   template: `
-    <div class="panel p-5">
-      <h3 class="kicker mb-4">{{ title() }}</h3>
-      <div class="mx-auto h-64 max-w-sm">
-        <canvas #canvas role="img" [attr.aria-label]="title() + ' chart'"></canvas>
+    <div class="panel w-full min-w-0 max-w-full overflow-hidden p-4 sm:p-5">
+      <h3 class="kicker mb-3 sm:mb-4">{{ title() }}</h3>
+      <div
+        class="relative mx-auto h-64 w-full min-w-0 max-w-sm overflow-hidden"
+        [class.hidden]="labels().length === 0"
+      >
+        <canvas #canvas aria-hidden="true"></canvas>
       </div>
       @if (labels().length === 0) {
-        <p class="mt-2 text-center text-sm text-ink-muted">No spending breakdown for this period yet.</p>
+        <div class="grid min-h-24 place-items-center rounded-2xl border border-dashed border-line bg-surface-muted px-4 text-center">
+          <p class="text-sm text-ink-muted">No spending breakdown for this period yet.</p>
+        </div>
       }
     </div>
   `,
@@ -72,6 +76,9 @@ export class ChartDonutComponent implements AfterViewInit, OnDestroy {
 
   private buildConfig(): ChartConfiguration<'doughnut'> {
     const self = this;
+    const canvas = this.canvasRef().nativeElement;
+    const labelColor = chartCssVariable(canvas, '--chart-label', '#66736F');
+    const surfaceColor = chartCssVariable(canvas, '--chart-surface', '#FFFFFF');
     return {
       type: 'doughnut',
       data: {
@@ -81,7 +88,7 @@ export class ChartDonutComponent implements AfterViewInit, OnDestroy {
             data: [],
             backgroundColor: [],
             borderWidth: 2,
-            borderColor: '#ffffff',
+            borderColor: surfaceColor,
           },
         ],
       },
@@ -91,7 +98,7 @@ export class ChartDonutComponent implements AfterViewInit, OnDestroy {
         plugins: {
           legend: {
             position: 'bottom',
-            labels: { boxWidth: 12, font: { size: 11 }, color: '#66736F' },
+            labels: { boxWidth: 12, font: { size: 11 }, color: labelColor },
           },
         },
         onClick(_event: ChartEvent, elements: ActiveElement[]) {
@@ -106,11 +113,15 @@ export class ChartDonutComponent implements AfterViewInit, OnDestroy {
 
   private applyData(labels: string[], data: number[]): void {
     if (!this.chart) return;
+    const canvas = this.canvasRef().nativeElement;
     this.chart.data.labels = labels;
     this.chart.data.datasets[0].data = data;
-    this.chart.data.datasets[0].backgroundColor = labels.map(
-      (_, i) => PALETTE[i % PALETTE.length]
+    this.chart.data.datasets[0].backgroundColor = labels.map((_, i) =>
+      chartCssVariable(canvas, PALETTE_VARIABLES[i % PALETTE_VARIABLES.length], '#0F766E')
     );
+    if (labels.length) {
+      this.chart.resize();
+    }
     this.chart.update();
   }
 }

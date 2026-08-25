@@ -11,7 +11,7 @@ const STORAGE_KEY = 'budget-app-project-ideas-completed';
   standalone: true,
   imports: [MatCardModule, MatCheckboxModule, MatProgressBarModule],
   template: `
-    <div class="space-y-6">
+    <div class="flex flex-col gap-6">
       <div class="page-header">
         <h1 class="page-title">Internal project ideas</h1>
         <p class="page-subtitle">
@@ -48,7 +48,7 @@ const STORAGE_KEY = 'budget-app-project-ideas-completed';
                 </div>
 
                 @for (child of idea.children ?? []; track child.id) {
-                  <div class="flex items-start gap-3 border-t border-brand-50 px-4 py-2.5 pl-12">
+                  <div class="flex items-start gap-3 border-t border-action-soft px-4 py-2.5 pl-12">
                     <mat-checkbox
                       class="!mt-0.5"
                       [checked]="isDone(child.id)"
