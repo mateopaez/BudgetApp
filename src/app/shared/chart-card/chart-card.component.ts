@@ -16,13 +16,13 @@ Chart.register(...registerables);
   standalone: true,
   host: { class: 'block' },
   template: `
-    <div class="app-card p-5">
-      <h3 class="mb-4 text-sm font-semibold uppercase tracking-wide text-brand-800">{{ title() }}</h3>
+    <div class="panel p-5">
+      <h3 class="kicker mb-4">{{ title() }}</h3>
       <div class="h-56">
-        <canvas #canvas></canvas>
+        <canvas #canvas role="img" [attr.aria-label]="title() + ' chart'"></canvas>
       </div>
       @if (labels().length === 0) {
-        <p class="mt-2 text-center text-sm text-slate-500">No data for this period.</p>
+        <p class="mt-2 text-center text-sm text-ink-muted">No balance history for this period yet.</p>
       }
     </div>
   `,
@@ -31,7 +31,7 @@ export class ChartCardComponent implements AfterViewInit, OnDestroy {
   readonly title = input.required<string>();
   readonly labels = input<string[]>([]);
   readonly data = input<number[]>([]);
-  readonly color = input('#7c3aed');
+  readonly color = input('#0F766E');
 
   private readonly canvasRef = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
   private chart?: Chart;
@@ -79,13 +79,13 @@ export class ChartCardComponent implements AfterViewInit, OnDestroy {
         plugins: { legend: { display: false } },
         scales: {
           x: {
-            grid: { color: '#ede9fe' },
-            ticks: { color: '#64748b', font: { size: 11 } },
+            grid: { color: '#DED8CE' },
+            ticks: { color: '#66736F', font: { size: 11 } },
           },
           y: {
             beginAtZero: true,
-            grid: { color: '#ede9fe' },
-            ticks: { color: '#64748b', font: { size: 11 } },
+            grid: { color: '#DED8CE' },
+            ticks: { color: '#66736F', font: { size: 11 } },
           },
         },
       },

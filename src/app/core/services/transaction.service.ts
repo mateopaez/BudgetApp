@@ -6,6 +6,7 @@ import {
   deleteDoc,
   doc,
   getDocs,
+  limit,
   onSnapshot,
   orderBy,
   query,
@@ -13,10 +14,12 @@ import {
   updateDoc,
   where,
   writeBatch,
+  type DocumentData,
+  type UpdateData,
 } from '@angular/fire/firestore';
 import { Observable } from 'rxjs';
 import { ParsedImportRow, SplitLine, Transaction, TransactionKind } from '../models';
-import { endOfMonth, startOfMonth } from '../utils/date.util';
+import { endOfMonth, startOfDay, startOfMonth } from '../utils/date.util';
 import { normalizeMerchant } from '../utils/hash.util';
 import { toDate, toTimestamp } from '../utils/firestore.util';
 import { AuthService } from './auth.service';
@@ -142,7 +145,7 @@ export class TransactionService {
     const description = input.description?.trim() || null;
     return {
       accountId: input.accountId,
-      postedAt: toTimestamp(input.postedAt),
+      postedAt: toTimestamp(startOfDay(input.postedAt)),
       merchant: normalizeMerchant(input.merchant),
       description,
       amount: input.amount,
@@ -156,13 +159,20 @@ export class TransactionService {
     };
   }
 
-  async importBatch(accountId: string, rows: ParsedImportRow[]): Promise<{ imported: number; skipped: number }> {
+  async importBatch(
+    accountId: string,
+    rows: ParsedImportRow[],
+    onProgress?: (done: number, total: number) => void
+  ): Promise<{ imported: number; skipped: number }> {
     const uid = this.auth.uid();
     if (!uid) throw new Error('Not authenticated');
 
     const toImport = rows.filter((r) => !r.isDuplicate);
     const ref = collection(this.firestore, `users/${uid}/transactions`);
     const chunkSize = 400;
+    let committed = 0;
+
+    onProgress?.(0, toImport.length);
 
     for (let i = 0; i < toImport.length; i += chunkSize) {
       const chunk = toImport.slice(i, i + chunkSize);
@@ -171,7 +181,7 @@ export class TransactionService {
         const newRef = doc(ref);
         batch.set(newRef, {
           accountId,
-          postedAt: toTimestamp(row.postedAt),
+          postedAt: toTimestamp(startOfDay(row.postedAt)),
           merchant: row.merchant,
           description: row.description,
           amount: row.amount,
@@ -183,6 +193,8 @@ export class TransactionService {
         });
       });
       await batch.commit();
+      committed += chunk.length;
+      onProgress?.(committed, toImport.length);
     }
 
     return { imported: toImport.length, skipped: rows.length - toImport.length };
@@ -191,20 +203,85 @@ export class TransactionService {
   async update(id: string, patch: Partial<TransactionInput>): Promise<void> {
     const uid = this.auth.uid();
     if (!uid) throw new Error('Not authenticated');
-    await updateDoc(doc(this.firestore, `users/${uid}/transactions/${id}`), {
-      ...patch,
-      postedAt: patch.postedAt ? toTimestamp(patch.postedAt) : undefined,
-      merchant: patch.merchant ? normalizeMerchant(patch.merchant) : undefined,
-      description:
-        patch.description !== undefined ? patch.description?.trim() || null : undefined,
+
+    // Firestore rejects `undefined` field values — only send keys that are present.
+    const data: UpdateData<DocumentData> = {
       updatedAt: serverTimestamp(),
-    });
+    };
+
+    if (patch.accountId !== undefined) data['accountId'] = patch.accountId;
+    if (patch.postedAt !== undefined) {
+      data['postedAt'] = toTimestamp(startOfDay(patch.postedAt));
+    }
+    if (patch.merchant !== undefined) data['merchant'] = normalizeMerchant(patch.merchant);
+    if (patch.description !== undefined) {
+      data['description'] = patch.description?.trim() || null;
+    }
+    if (patch.amount !== undefined) data['amount'] = patch.amount;
+    if (patch.kind !== undefined) data['kind'] = patch.kind;
+    if (patch.categoryId !== undefined) data['categoryId'] = patch.categoryId;
+    if (patch.split !== undefined) data['split'] = patch.split;
+    if (patch.importHash !== undefined) data['importHash'] = patch.importHash;
+    if (patch.scheduledItemId !== undefined) data['scheduledItemId'] = patch.scheduledItemId;
+
+    await updateDoc(doc(this.firestore, `users/${uid}/transactions/${id}`), data);
   }
 
   async remove(id: string): Promise<void> {
     const uid = this.auth.uid();
     if (!uid) throw new Error('Not authenticated');
     await deleteDoc(doc(this.firestore, `users/${uid}/transactions/${id}`));
+  }
+
+  /** Deletes the given transaction docs in batches of 400. */
+  async removeMany(
+    ids: string[],
+    onProgress?: (done: number, total: number) => void
+  ): Promise<number> {
+    const uid = this.auth.uid();
+    if (!uid) throw new Error('Not authenticated');
+    if (ids.length === 0) return 0;
+
+    const chunkSize = 400;
+    let deleted = 0;
+    onProgress?.(0, ids.length);
+
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const batch = writeBatch(this.firestore);
+      ids.slice(i, i + chunkSize).forEach((id) => {
+        batch.delete(doc(this.firestore, `users/${uid}/transactions/${id}`));
+      });
+      await batch.commit();
+      deleted += Math.min(chunkSize, ids.length - i);
+      onProgress?.(deleted, ids.length);
+    }
+    return ids.length;
+  }
+
+  /**
+   * Deletes every transaction for the signed-in user.
+   * Pages through the collection so large datasets and cache/server mismatches still clear.
+   */
+  async removeAll(onProgress?: (deleted: number) => void): Promise<number> {
+    const uid = this.auth.uid();
+    if (!uid) throw new Error('Not authenticated');
+
+    const ref = collection(this.firestore, `users/${uid}/transactions`);
+    let deleted = 0;
+
+    // Page until empty — do not rely on a single getDocs() of the whole collection.
+    for (;;) {
+      const snap = await getDocs(query(ref, limit(400)));
+      if (snap.empty) break;
+
+      const batch = writeBatch(this.firestore);
+      snap.docs.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+      deleted += snap.size;
+      onProgress?.(deleted);
+    }
+
+    return deleted;
   }
 
   async getByAccount(accountId: string): Promise<Transaction[]> {

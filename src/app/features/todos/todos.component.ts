@@ -13,7 +13,7 @@ const STORAGE_KEY = 'budget-app-project-ideas-completed';
   template: `
     <div class="space-y-6">
       <div class="page-header">
-        <h1 class="page-title">Project ideas</h1>
+        <h1 class="page-title">Internal project ideas</h1>
         <p class="page-subtitle">
           Feature roadmap for Budget Tracker
           · {{ completedCount() }} of {{ totalCount }} done
@@ -24,11 +24,11 @@ const STORAGE_KEY = 'budget-app-project-ideas-completed';
 
       <mat-card class="app-card">
         <mat-card-header>
-          <mat-card-title class="!text-midnight-900">Roadmap</mat-card-title>
+          <mat-card-title class="!text-ink">Roadmap</mat-card-title>
           <mat-card-subtitle>Check items off as you ship them. Saved in this browser only.</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
-          <ul class="divide-y divide-brand-100 overflow-hidden rounded-xl border border-brand-100">
+          <ul class="divide-y divide-line overflow-hidden rounded-xl border border-line">
             @for (idea of ideas; track idea.id) {
               <li>
                 <div class="flex items-start gap-3 px-4 py-3">
@@ -41,7 +41,7 @@ const STORAGE_KEY = 'budget-app-project-ideas-completed';
                     class="min-w-0 flex-1 pt-1 font-medium"
                     [class.text-slate-400]="isDone(idea.id)"
                     [class.line-through]="isDone(idea.id)"
-                    [class.text-midnight-900]="!isDone(idea.id)"
+                    [class.text-ink]="!isDone(idea.id)"
                   >
                     {{ idea.title }}
                   </span>

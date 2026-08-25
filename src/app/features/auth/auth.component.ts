@@ -20,55 +20,104 @@ import { AuthService } from '../../core/services/auth.service';
     MatTabsModule,
   ],
   template: `
-    <div
-      class="flex min-h-screen items-center justify-center bg-gradient-to-br from-midnight-900 via-brand-950 to-midnight-900 p-4"
-    >
-      <mat-card class="w-full max-w-md !rounded-2xl !border-brand-200 !shadow-2xl">
-        <mat-card-header class="!pb-2">
-          <mat-card-title class="!text-2xl !font-bold !text-brand-700">Budget Tracker</mat-card-title>
-          <mat-card-subtitle>Track spending across accounts</mat-card-subtitle>
-        </mat-card-header>
-        <mat-card-content>
-          <mat-tab-group>
-            <mat-tab label="Sign in">
-              <form class="mt-4 space-y-4" [formGroup]="signInForm" (ngSubmit)="signIn()">
-                <mat-form-field>
-                  <mat-label>Email</mat-label>
-                  <input matInput type="email" formControlName="email" />
-                </mat-form-field>
-                <mat-form-field>
-                  <mat-label>Password</mat-label>
-                  <input matInput type="password" formControlName="password" />
-                </mat-form-field>
-                @if (error()) {
-                  <p class="text-sm text-red-600">{{ error() }}</p>
-                }
-                <button mat-flat-button color="primary" class="!w-full" type="submit" [disabled]="loading()">
-                  Sign in
-                </button>
-              </form>
-            </mat-tab>
-            <mat-tab label="Sign up">
-              <form class="mt-4 space-y-4" [formGroup]="signUpForm" (ngSubmit)="signUp()">
-                <mat-form-field>
-                  <mat-label>Email</mat-label>
-                  <input matInput type="email" formControlName="email" />
-                </mat-form-field>
-                <mat-form-field>
-                  <mat-label>Password</mat-label>
-                  <input matInput type="password" formControlName="password" />
-                </mat-form-field>
-                @if (error()) {
-                  <p class="text-sm text-red-600">{{ error() }}</p>
-                }
-                <button mat-flat-button color="primary" class="!w-full" type="submit" [disabled]="loading()">
-                  Create account
-                </button>
-              </form>
-            </mat-tab>
-          </mat-tab-group>
-        </mat-card-content>
-      </mat-card>
+    <div class="min-h-screen bg-canvas px-4 py-8 text-ink sm:px-6">
+      <div class="mx-auto grid min-h-[calc(100vh-4rem)] max-w-5xl items-center gap-8 lg:grid-cols-[1.05fr_0.95fr]">
+        <section class="hidden lg:block">
+          <p class="kicker">BudgetApp</p>
+          <h1 class="mt-3 max-w-xl text-5xl font-bold leading-[0.96] tracking-[-0.06em] text-ink">
+            Know where your money stands before you spend.
+          </h1>
+          <p class="mt-5 max-w-lg text-base leading-7 text-ink-muted">
+            Track accounts, review transactions, import bank activity, and plan what is coming due in one calm personal ledger.
+          </p>
+
+          <div class="panel mt-8 max-w-md p-5">
+            <p class="kicker">Preview</p>
+            <div class="mt-4 space-y-3">
+              <div class="flex items-end justify-between border-b border-line pb-3">
+                <div>
+                  <p class="text-sm text-ink-muted">Net worth</p>
+                  <p class="money text-3xl font-semibold tracking-[-0.05em]">$12,480</p>
+                </div>
+                <span class="rounded-full bg-action-soft px-3 py-1 text-xs font-semibold text-ink">Calm</span>
+              </div>
+              <div class="grid grid-cols-2 gap-3 text-sm">
+                <div class="rounded-2xl bg-[#fffcf7] p-3">
+                  <p class="text-ink-muted">Upcoming</p>
+                  <p class="mt-1 font-semibold">2 bills due</p>
+                </div>
+                <div class="rounded-2xl bg-[#fffcf7] p-3">
+                  <p class="text-ink-muted">Review</p>
+                  <p class="mt-1 font-semibold">4 uncategorized</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <mat-card class="w-full !rounded-[2rem] !border-line !shadow-floating">
+          <mat-card-header class="!pb-2">
+            <mat-card-title class="!text-2xl !font-bold !tracking-[-0.03em] !text-ink">Welcome back</mat-card-title>
+            <mat-card-subtitle>Sign in to review your budget, balances, and upcoming bills.</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            <mat-tab-group>
+              <mat-tab label="Sign in">
+                <form class="mt-5 space-y-4" [formGroup]="signInForm" (ngSubmit)="signIn()">
+                  <mat-form-field>
+                    <mat-label>Email</mat-label>
+                    <input matInput type="email" autocomplete="email" formControlName="email" />
+                    @if (signInForm.controls.email.invalid && signInForm.controls.email.touched) {
+                      <mat-error>Enter a valid email address.</mat-error>
+                    }
+                  </mat-form-field>
+                  <mat-form-field>
+                    <mat-label>Password</mat-label>
+                    <input matInput type="password" autocomplete="current-password" formControlName="password" />
+                    @if (signInForm.controls.password.invalid && signInForm.controls.password.touched) {
+                      <mat-error>Password must be at least 6 characters.</mat-error>
+                    }
+                  </mat-form-field>
+                  @if (error()) {
+                    <p class="rounded-2xl border border-finance-expense/20 bg-finance-expenseSoft px-4 py-3 text-sm text-finance-expense">{{ error() }}</p>
+                  }
+                  <button mat-flat-button color="primary" class="!h-12 !w-full" type="submit" [disabled]="loading()">
+                    {{ loading() ? 'Signing in…' : 'Sign in' }}
+                  </button>
+                </form>
+              </mat-tab>
+              <mat-tab label="Create account">
+                <form class="mt-5 space-y-4" [formGroup]="signUpForm" (ngSubmit)="signUp()">
+                  <mat-form-field>
+                    <mat-label>Email</mat-label>
+                    <input matInput type="email" autocomplete="email" formControlName="email" />
+                    @if (signUpForm.controls.email.invalid && signUpForm.controls.email.touched) {
+                      <mat-error>Enter a valid email address.</mat-error>
+                    }
+                  </mat-form-field>
+                  <mat-form-field>
+                    <mat-label>Password</mat-label>
+                    <input matInput type="password" autocomplete="new-password" formControlName="password" />
+                    @if (signUpForm.controls.password.invalid && signUpForm.controls.password.touched) {
+                      <mat-error>Use at least 6 characters.</mat-error>
+                    }
+                  </mat-form-field>
+                  @if (error()) {
+                    <p class="rounded-2xl border border-finance-expense/20 bg-finance-expenseSoft px-4 py-3 text-sm text-finance-expense">{{ error() }}</p>
+                  }
+                  <button mat-flat-button color="primary" class="!h-12 !w-full" type="submit" [disabled]="loading()">
+                    {{ loading() ? 'Creating account…' : 'Create account' }}
+                  </button>
+                </form>
+              </mat-tab>
+            </mat-tab-group>
+
+            <div class="mt-5 rounded-2xl border border-line bg-[#fffcf7] p-4 text-xs leading-5 text-ink-muted">
+              CSV files are parsed in your browser. Only the transactions you import are saved to your account.
+            </div>
+          </mat-card-content>
+        </mat-card>
+      </div>
     </div>
   `,
 })

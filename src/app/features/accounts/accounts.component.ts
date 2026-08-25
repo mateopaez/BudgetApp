@@ -8,6 +8,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatIconModule } from '@angular/material/icon';
+import { MatDialog } from '@angular/material/dialog';
 import { Account, AccountType } from '../../core/models';
 import { AccountService } from '../../core/services/account.service';
 import { TransactionService } from '../../core/services/transaction.service';
@@ -20,6 +21,8 @@ import {
 } from '../../core/utils/balance-history.util';
 import { startOfDay } from '../../core/utils/date.util';
 import { ChartCardComponent } from '../../shared/chart-card/chart-card.component';
+import { confirmDialog } from '../../shared/confirm-dialog/confirm-dialog.component';
+import { ModalSheetComponent } from '../../shared/modal-sheet/modal-sheet.component';
 
 @Component({
   selector: 'app-accounts',
@@ -36,20 +39,29 @@ import { ChartCardComponent } from '../../shared/chart-card/chart-card.component
     MatButtonModule,
     MatIconModule,
     ChartCardComponent,
+    ModalSheetComponent,
   ],
   template: `
     <div class="space-y-6">
-      <div class="page-header">
-        <h1 class="page-title">Accounts</h1>
-        <p class="page-subtitle">Balances, net worth, and comparison</p>
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div class="page-header">
+          <h1 class="page-title">Accounts</h1>
+          <p class="page-subtitle">Balance sheet, account context, and net-worth history</p>
+        </div>
+        @if (!accountSheetOpen()) {
+          <button mat-flat-button color="primary" type="button" (click)="startAdd()">
+            <mat-icon>add</mat-icon>
+            Add account
+          </button>
+        }
       </div>
 
       <div class="grid gap-3 sm:grid-cols-3">
-        <div class="rounded-xl border border-brand-100 bg-brand-50 px-4 py-3">
-          <p class="text-xs font-medium uppercase tracking-wide text-brand-700">Net worth today</p>
+        <div class="rounded-xl border border-line bg-action-soft px-4 py-3">
+          <p class="text-xs font-medium uppercase tracking-wide text-action">Net worth today</p>
           <p
             class="text-xl font-semibold"
-            [class]="netWorth() < 0 ? 'text-red-600' : 'text-brand-800'"
+            [class]="netWorth() < 0 ? 'text-red-600' : 'text-action'"
           >
             {{ netWorth() | currency }}
           </p>
@@ -74,16 +86,47 @@ import { ChartCardComponent } from '../../shared/chart-card/chart-card.component
         </div>
       </div>
 
+      @if (accounts().length) {
+        <section class="grid gap-3 lg:grid-cols-3">
+          @for (group of accountTypeSummaries(); track group.type) {
+            <div class="rounded-2xl border border-line bg-surface p-4">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <p class="font-semibold text-ink">{{ group.title }}</p>
+                  <p class="mt-1 text-xs text-ink-muted">{{ group.description }}</p>
+                </div>
+                <span
+                  class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm"
+                  [class]="typeBadgeClass(group.type)"
+                >
+                  <mat-icon class="!text-base">{{ typeIcon(group.type) }}</mat-icon>
+                </span>
+              </div>
+              <p
+                class="money mt-3 text-2xl font-semibold"
+                [class.text-red-600]="group.total < 0"
+                [class.text-action]="group.total >= 0"
+              >
+                {{ group.total | currency }}
+              </p>
+              <p class="mt-1 text-xs text-ink-muted">
+                {{ group.count }} account{{ group.count === 1 ? '' : 's' }}
+              </p>
+            </div>
+          }
+        </section>
+      }
+
       <app-chart-card
         title="Net worth (last 90 days)"
         [labels]="netWorthLabels()"
         [data]="netWorthData()"
-        color="#7c3aed"
+        color="#0F766E"
       />
 
       <div class="app-card overflow-hidden">
-        <div class="border-b border-brand-100 px-5 py-4">
-          <h3 class="text-sm font-semibold uppercase tracking-wide text-brand-800">
+        <div class="border-b border-line px-5 py-4">
+          <h3 class="text-sm font-semibold uppercase tracking-wide text-action">
             Account comparison
           </h3>
           <p class="mt-1 text-xs text-slate-500">
@@ -93,7 +136,7 @@ import { ChartCardComponent } from '../../shared/chart-card/chart-card.component
         </div>
         <div class="overflow-x-auto">
           <table class="w-full min-w-[480px] text-sm">
-            <thead class="bg-brand-50/60 text-left text-xs uppercase tracking-wide text-slate-500">
+            <thead class="bg-action-soft/60 text-left text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th class="px-4 py-2 font-medium">Account</th>
                 <th class="px-4 py-2 font-medium">Type</th>
@@ -102,14 +145,14 @@ import { ChartCardComponent } from '../../shared/chart-card/chart-card.component
                 <th class="px-4 py-2 font-medium">YTD</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-brand-100">
+            <tbody class="divide-y divide-line">
               @for (row of comparisonRows(); track row.account.id) {
                 <tr>
-                  <td class="px-4 py-2.5 font-medium text-midnight-900">{{ row.account.name }}</td>
+                  <td class="px-4 py-2.5 font-medium text-ink">{{ row.account.name }}</td>
                   <td class="px-4 py-2.5 text-slate-500">{{ row.account.type | titlecase }}</td>
                   <td
                     class="px-4 py-2.5 font-semibold"
-                    [class]="row.balanceToday < 0 ? 'text-red-600' : 'text-brand-700'"
+                    [class]="row.balanceToday < 0 ? 'text-red-600' : 'text-action'"
                   >
                     {{ row.balanceToday | currency }}
                   </td>
@@ -136,41 +179,6 @@ import { ChartCardComponent } from '../../shared/chart-card/chart-card.component
         </div>
       </div>
 
-      <mat-card class="app-card">
-        <mat-card-content>
-          <form class="grid gap-4 sm:grid-cols-2" [formGroup]="form" (ngSubmit)="save()">
-            <mat-form-field>
-              <mat-label>Name</mat-label>
-              <input matInput formControlName="name" />
-            </mat-form-field>
-            <mat-form-field>
-              <mat-label>Type</mat-label>
-              <mat-select formControlName="type">
-                <mat-option value="checking">Checking</mat-option>
-                <mat-option value="savings">Savings</mat-option>
-                <mat-option value="credit_card">Credit Card</mat-option>
-              </mat-select>
-            </mat-form-field>
-            <mat-form-field>
-              <mat-label>Opening balance</mat-label>
-              <input matInput type="number" step="0.01" formControlName="openingBalance" />
-            </mat-form-field>
-            <mat-form-field>
-              <mat-label>Opening date</mat-label>
-              <input matInput type="date" formControlName="openingDate" />
-            </mat-form-field>
-            <div class="flex flex-wrap gap-2 sm:col-span-2">
-              <button mat-flat-button color="primary" type="submit">
-                {{ editingId() ? 'Update' : 'Add' }} account
-              </button>
-              @if (editingId()) {
-                <button mat-stroked-button type="button" (click)="cancelEdit()">Cancel</button>
-              }
-            </div>
-          </form>
-        </mat-card-content>
-      </mat-card>
-
       <div class="space-y-3">
         @for (account of accounts(); track account.id) {
           <div class="app-list-row flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -182,39 +190,95 @@ import { ChartCardComponent } from '../../shared/chart-card/chart-card.component
                 >
                   <mat-icon class="!text-base">{{ typeIcon(account.type) }}</mat-icon>
                 </span>
-                <p class="truncate font-semibold text-midnight-900">{{ account.name }}</p>
+                <p class="truncate font-semibold text-ink">{{ account.name }}</p>
               </div>
               <p class="mt-1 text-sm text-slate-500">
                 {{ account.type | titlecase }} · opened {{ account.openingDate | date: 'mediumDate' }}
               </p>
               <p
                 class="text-sm font-medium"
-                [class]="balanceFor(account.id) < 0 ? 'text-red-600' : 'text-brand-700'"
+                [class]="balanceFor(account.id) < 0 ? 'text-red-600' : 'text-action'"
               >
                 Balance: {{ balanceFor(account.id) | currency }}
               </p>
             </div>
             <div class="flex shrink-0 gap-1 self-end sm:self-center">
-              <button mat-icon-button (click)="edit(account)" aria-label="Edit account">
+              <button mat-icon-button (click)="edit(account)" [attr.aria-label]="'Edit ' + account.name">
                 <mat-icon>edit</mat-icon>
               </button>
-              <button mat-icon-button color="warn" (click)="remove(account.id)" aria-label="Delete account">
+              <button mat-icon-button color="warn" (click)="remove(account.id)" [attr.aria-label]="'Delete ' + account.name">
                 <mat-icon>delete</mat-icon>
               </button>
             </div>
           </div>
         } @empty {
-          <p class="text-sm text-slate-500">No accounts yet. Add your first account above.</p>
+          <div class="panel text-center">
+            <p class="font-semibold text-ink">No accounts yet</p>
+            <p class="mt-1 text-sm text-slate-500">Start with checking. Add savings and credit cards after.</p>
+            <button mat-flat-button color="primary" type="button" class="!mt-4" (click)="startAdd()">Add first account</button>
+          </div>
         }
       </div>
     </div>
+
+    @if (accountSheetOpen()) {
+      <app-modal-sheet
+        [title]="editingId() ? 'Edit account' : 'Add account'"
+        subtitle="Start with the balance from the date you want BudgetApp to begin tracking this account."
+        [ariaLabel]="editingId() ? 'Edit account' : 'Add account'"
+        (closed)="cancelEdit()"
+      >
+        <form id="account-form" class="space-y-5" [formGroup]="form" (ngSubmit)="save()">
+          <section class="space-y-3">
+            <p class="kicker">Account details</p>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <mat-form-field appearance="outline">
+                <mat-label>Name</mat-label>
+                <input matInput formControlName="name" autocomplete="off" />
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Type</mat-label>
+                <mat-select formControlName="type">
+                  <mat-option value="checking">Checking</mat-option>
+                  <mat-option value="savings">Savings</mat-option>
+                  <mat-option value="credit_card">Credit card</mat-option>
+                </mat-select>
+              </mat-form-field>
+            </div>
+          </section>
+
+          <section class="rounded-2xl border border-line bg-action-soft/40 p-4">
+            <p class="kicker">Opening balance</p>
+            <div class="mt-3 grid gap-3 sm:grid-cols-2">
+              <mat-form-field appearance="outline">
+                <mat-label>Opening balance</mat-label>
+                <input matInput type="number" step="0.01" formControlName="openingBalance" />
+                <mat-hint>Use a negative balance for credit card debt.</mat-hint>
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Opening date</mat-label>
+                <input matInput type="date" formControlName="openingDate" />
+              </mat-form-field>
+            </div>
+          </section>
+        </form>
+
+        <button modalActions mat-button type="button" (click)="cancelEdit()">Cancel</button>
+        <button modalActions mat-flat-button color="primary" type="submit" form="account-form" [disabled]="form.invalid">
+          {{ editingId() ? 'Update account' : 'Add account' }}
+        </button>
+      </app-modal-sheet>
+    }
   `,
 })
 export class AccountsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly accountService = inject(AccountService);
   private readonly transactionService = inject(TransactionService);
+  private readonly dialog = inject(MatDialog);
 
+  readonly showAccountForm = signal(false);
+  readonly accountSheetOpen = computed(() => this.showAccountForm() || !!this.editingId());
   readonly accounts = toSignal(this.accountService.watchAccounts(), { initialValue: [] });
   private readonly transactions = toSignal(this.transactionService.watchAllTransactions(), {
     initialValue: [],
@@ -232,6 +296,23 @@ export class AccountsComponent {
   readonly comparisonRows = computed(() =>
     buildAccountComparisonRows(this.accounts(), this.transactions())
   );
+
+  readonly accountTypeSummaries = computed(() => {
+    const accounts = this.accounts();
+    const groups: { type: AccountType; title: string; description: string }[] = [
+      { type: 'checking', title: 'Checking', description: 'Daily cash and bill-pay accounts' },
+      { type: 'savings', title: 'Savings', description: 'Reserves and money set aside' },
+      { type: 'credit_card', title: 'Credit cards', description: 'Liabilities reduce net worth when balances are negative' },
+    ];
+    return groups.map((group) => {
+      const matching = accounts.filter((account) => account.type === group.type);
+      return {
+        ...group,
+        count: matching.length,
+        total: matching.reduce((sum, account) => sum + this.balanceFor(account.id), 0),
+      };
+    });
+  });
 
   private readonly netWorthSeries = computed(() => {
     const end = startOfDay(new Date());
@@ -291,12 +372,23 @@ export class AccountsComponent {
   typeBadgeClass(type: AccountType): string {
     switch (type) {
       case 'checking':
-        return 'bg-brand-100 text-brand-700';
+        return 'bg-action-soft text-action';
       case 'savings':
         return 'bg-emerald-100 text-emerald-700';
       case 'credit_card':
         return 'bg-amber-100 text-amber-700';
     }
+  }
+
+  startAdd(): void {
+    this.editingId.set(null);
+    this.showAccountForm.set(true);
+    this.form.reset({
+      name: '',
+      type: 'checking',
+      openingBalance: 0,
+      openingDate: new Date().toISOString().slice(0, 10),
+    });
   }
 
   async save(): Promise<void> {
@@ -318,6 +410,7 @@ export class AccountsComponent {
   }
 
   edit(account: Account): void {
+    this.showAccountForm.set(true);
     this.editingId.set(account.id);
     this.form.patchValue({
       name: account.name,
@@ -328,6 +421,7 @@ export class AccountsComponent {
   }
 
   cancelEdit(): void {
+    this.showAccountForm.set(false);
     this.editingId.set(null);
     this.form.reset({
       name: '',
@@ -338,8 +432,14 @@ export class AccountsComponent {
   }
 
   async remove(id: string): Promise<void> {
-    if (confirm('Delete this account?')) {
-      await this.accountService.remove(id);
-    }
+    const confirmed = await confirmDialog(this.dialog, {
+      title: 'Delete account?',
+      message: 'This account will be removed from your account list.',
+      detail: 'Transactions that reference this account may lose important context in reports. Only delete accounts you no longer need.',
+      confirmLabel: 'Delete account',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
+    await this.accountService.remove(id);
   }
 }

@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, NgZone, inject } from '@angular/core';
 import Papa from 'papaparse';
 import { Category, ParsedImportRow, TransactionKind } from '../models';
 import {
@@ -13,6 +13,7 @@ import {
   normalizeImportMerchant,
   resolveAmountFromRow,
 } from '../utils/import-normalizers.util';
+import { formatDateParam } from '../utils/date.util';
 import { sha1 } from '../utils/hash.util';
 import { CategoryService } from './category.service';
 
@@ -29,34 +30,68 @@ function yieldToUi(): Promise<void> {
 @Injectable({ providedIn: 'root' })
 export class ImportService {
   private readonly categoryService = inject(CategoryService);
+  private readonly zone = inject(NgZone);
 
   parseCsvFile(file: File, onProgress?: (progress: ImportProgress) => void): Promise<ParsedCsvFile> {
     return new Promise((resolve, reject) => {
-      const rows: RawCsvRow[] = [];
-      let headers: string[] = [];
+      this.zone.run(() => {
+        onProgress?.({ phase: 'parsing', progress: 5, message: 'Reading CSV…' });
+      });
 
       Papa.parse<RawCsvRow>(file, {
         header: true,
-        skipEmptyLines: true,
-        step: (results) => {
-          if (!headers.length && results.meta.fields) {
-            headers = results.meta.fields.filter(Boolean) as string[];
-          }
-          if (results.data) {
-            rows.push(results.data);
-          }
-          if (onProgress && file.size > 0) {
-            const pct = Math.min(40, Math.round((results.meta.cursor / file.size) * 40));
-            onProgress({ phase: 'parsing', progress: pct, message: 'Reading CSV…' });
-          }
+        skipEmptyLines: 'greedy',
+        transformHeader: (header, index) => {
+          const trimmed = String(header ?? '').trim();
+          return trimmed || `Column ${index + 1}`;
         },
-        complete: () => {
-          onProgress?.({ phase: 'parsing', progress: 40, message: 'CSV read complete' });
-          resolve({ headers, rows });
+        complete: (results) => {
+          this.zone.run(() => {
+            try {
+              const rows = (results.data ?? [])
+                .map((row) => this.cleanRow(row))
+                .filter((row) => Object.keys(row).length > 0);
+              const headers = this.extractHeaders(results.meta.fields, rows[0]);
+
+              onProgress?.({ phase: 'parsing', progress: 40, message: 'CSV read complete' });
+              resolve({ headers, rows });
+            } catch (err) {
+              reject(err);
+            }
+          });
         },
-        error: (err) => reject(err),
+        error: (err) => {
+          this.zone.run(() => reject(err));
+        },
       });
     });
+  }
+
+  private extractHeaders(fields: string[] | undefined | null, row?: RawCsvRow): string[] {
+    const fromMeta = (fields ?? []).map((h) => String(h).trim()).filter(Boolean);
+    if (fromMeta.length) {
+      return this.dedupeHeaders(fromMeta);
+    }
+    const fromRow = Object.keys(row ?? {}).filter((key) => key && key !== '__parsed_extra');
+    return this.dedupeHeaders(fromRow);
+  }
+
+  private dedupeHeaders(headers: string[]): string[] {
+    const seen = new Map<string, number>();
+    return headers.map((header) => {
+      const count = seen.get(header) ?? 0;
+      seen.set(header, count + 1);
+      return count === 0 ? header : `${header}_${count}`;
+    });
+  }
+
+  private cleanRow(row: RawCsvRow): RawCsvRow {
+    const cleaned: RawCsvRow = {};
+    for (const [key, value] of Object.entries(row ?? {})) {
+      if (!key || key === '__parsed_extra') continue;
+      cleaned[key] = value == null ? '' : String(value);
+    }
+    return cleaned;
   }
 
   previewRows(
@@ -114,7 +149,9 @@ export class ImportService {
         refundId
       );
 
-      const importHash = await sha1(`${accountId}${postedAt.toISOString()}${merchant}${amount}`);
+      const importHash = await sha1(
+        `${accountId}${formatDateParam(postedAt)}${merchant}${amount}`
+      );
 
       mapped.push({
         postedAt,
@@ -168,8 +205,7 @@ export class ImportService {
 
     const amount = resolveAmountFromRow(row, profile.mapping, profile.amountSign);
     const postedAt = normalizeImportDate(
-      profile.mapping.date ? row[profile.mapping.date] : null,
-      profile.mapping.time ? row[profile.mapping.time] : null
+      profile.mapping.date ? row[profile.mapping.date] : null
     );
     const merchant = normalizeImportMerchant(
       profile.mapping.merchant ? row[profile.mapping.merchant] : null,

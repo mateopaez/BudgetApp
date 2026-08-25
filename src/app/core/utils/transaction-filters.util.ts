@@ -125,7 +125,7 @@ export function transactionAmountClass(tx: Transaction): string {
     return 'text-red-600';
   }
   if (tx.kind === 'income' || tx.kind === 'refund') {
-    return 'text-brand-600';
+    return 'text-action';
   }
   return 'text-slate-600';
 }

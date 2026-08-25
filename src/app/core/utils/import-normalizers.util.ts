@@ -1,5 +1,5 @@
 import { AmountSignConvention, ImportColumnMapping, RawCsvRow } from '../models/import.model';
-import { parsePostedAt } from './date.util';
+import { parsePostedAt, startOfDay } from './date.util';
 import { normalizeMerchant } from './hash.util';
 
 export function normalizeAmountRaw(raw: string | undefined | null): number | null {
@@ -56,19 +56,11 @@ export function resolveAmountFromRow(
   return applyAmountSignConvention(amount, convention);
 }
 
-export function normalizeImportDate(
-  dateRaw: string | undefined | null,
-  timeRaw?: string | null
-): Date | null {
+/** Parse import date only (time-of-day is ignored). */
+export function normalizeImportDate(dateRaw: string | undefined | null): Date | null {
   if (!dateRaw?.trim()) return null;
 
   const trimmed = dateRaw.trim();
-  const time = timeRaw?.trim() || '00:00:00';
-
-  const iso = Date.parse(`${trimmed}T${time}`);
-  if (!Number.isNaN(iso)) {
-    return new Date(iso);
-  }
 
   const slash = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
   if (slash) {
@@ -81,24 +73,19 @@ export function normalizeImportDate(
       month = Number(b) - 1;
     }
     const parsed = new Date(year, month, day);
-    if (!Number.isNaN(parsed.getTime())) {
-      if (time && time !== '00:00:00') {
-        return parsePostedAt(
-          `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
-          time
-        );
-      }
-      return parsed;
-    }
+    return Number.isNaN(parsed.getTime()) ? null : startOfDay(parsed);
   }
 
-  const dashed = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const dashed = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (dashed) {
-    return parsePostedAt(trimmed, time);
+    return parsePostedAt(`${dashed[1]}-${dashed[2]}-${dashed[3]}`);
   }
+
+  const parsed = parsePostedAt(trimmed);
+  if (parsed) return parsed;
 
   const fallback = new Date(trimmed);
-  return Number.isNaN(fallback.getTime()) ? null : fallback;
+  return Number.isNaN(fallback.getTime()) ? null : startOfDay(fallback);
 }
 
 export function normalizeImportMerchant(

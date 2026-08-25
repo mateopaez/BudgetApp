@@ -11,6 +11,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatDialog } from '@angular/material/dialog';
 import {
   CalendarEvent,
   MatCalendarComponent,
@@ -37,6 +38,8 @@ import {
   weekDays,
 } from '../../core/utils/calendar.util';
 import { endOfDay, formatDateParam, resolveCurrentWeek, startOfDay } from '../../core/utils/date.util';
+import { confirmDialog } from '../../shared/confirm-dialog/confirm-dialog.component';
+import { ModalSheetComponent } from '../../shared/modal-sheet/modal-sheet.component';
 
 interface DaySummaryData {
   type: 'day-summary';
@@ -66,29 +69,106 @@ const WEEK_DAY_VISIBLE_CAP = 5;
     MatIconModule,
     MatCheckboxModule,
     MatSnackBarModule,
+    ModalSheetComponent,
   ],
   template: `
     <div class="calendar-page space-y-6">
-      <div class="page-header">
-        <h1 class="page-title">Calendar</h1>
-        <p class="page-subtitle">
-          Bills, paychecks, and transactions · net worth
-          {{ netWorth() | currency }}
-        </p>
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div class="page-header">
+          <h1 class="page-title">Plan</h1>
+          <p class="page-subtitle">
+            Bills, paychecks, and transactions · net worth
+            {{ netWorth() | currency }}
+          </p>
+        </div>
+        <button mat-flat-button color="primary" type="button" (click)="startNewItem()" [disabled]="scheduleSheetOpen()">
+          <mat-icon>add</mat-icon>
+          Add bill or paycheck
+        </button>
       </div>
+
+      <section class="panel">
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p class="kicker">This week</p>
+            <h2 class="mt-1 text-xl font-semibold tracking-[-0.02em] text-ink">
+              {{ weekSummaryTitle() }}
+            </h2>
+            <p class="mt-1 text-sm text-ink-muted">{{ weekSummaryDetail() }}</p>
+          </div>
+
+          @if (nextUpcoming()) {
+            <div class="rounded-2xl border border-line bg-surface px-4 py-3 lg:min-w-72">
+              <p class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Next scheduled</p>
+              <div class="mt-2 flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="truncate font-semibold text-ink">{{ nextUpcoming()!.title }}</p>
+                  <p class="text-sm text-ink-muted">{{ nextUpcoming()!.date | date: 'EEE, MMM d' }}</p>
+                </div>
+                <p
+                  class="money shrink-0 font-semibold"
+                  [class.text-emerald-700]="nextUpcoming()!.amount > 0"
+                  [class.text-red-600]="nextUpcoming()!.amount < 0"
+                >
+                  {{ nextUpcoming()!.amount | currency }}
+                </p>
+              </div>
+            </div>
+          }
+        </div>
+
+        <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div class="metric">
+            <p class="kicker">Upcoming bills</p>
+            <p class="money mt-1 text-2xl font-semibold text-red-600">
+              {{ upcomingBillsTotal() | currency }}
+            </p>
+            <p class="mt-1 text-xs text-ink-muted">Next 7 days</p>
+          </div>
+          <div class="metric">
+            <p class="kicker">Upcoming income</p>
+            <p class="money mt-1 text-2xl font-semibold text-emerald-700">
+              {{ upcomingIncomeTotal() | currency }}
+            </p>
+            <p class="mt-1 text-xs text-ink-muted">Next 7 days</p>
+          </div>
+          <div
+            class="metric"
+            [class.bg-red-50]="upcomingNet() < 0"
+            [class.border-red-100]="upcomingNet() < 0"
+            [class.bg-emerald-50]="upcomingNet() >= 0"
+            [class.border-emerald-100]="upcomingNet() >= 0"
+          >
+            <p class="kicker">Scheduled net</p>
+            <p
+              class="money mt-1 text-2xl font-semibold"
+              [class.text-red-600]="upcomingNet() < 0"
+              [class.text-emerald-700]="upcomingNet() >= 0"
+            >
+              {{ upcomingNet() | currency }}
+            </p>
+            <p class="mt-1 text-xs text-ink-muted">Bills minus income due soon</p>
+          </div>
+          <div class="metric">
+            <p class="kicker">Active schedules</p>
+            <p class="mt-1 text-2xl font-semibold text-ink">{{ activeScheduledCount() }}</p>
+            <p class="mt-1 text-xs text-ink-muted">Bills and paychecks being tracked</p>
+          </div>
+        </div>
+      </section>
 
       <div class="app-card overflow-hidden p-3 sm:p-4">
         <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div class="flex flex-wrap items-center gap-2">
             <div
-              class="inline-flex overflow-hidden rounded-lg border border-brand-200 bg-white shadow-sm"
+              class="inline-flex overflow-hidden rounded-lg border border-line bg-white shadow-sm"
               role="group"
-              aria-label="Calendar view"
+              aria-label="Plan view"
             >
               <button
                 type="button"
                 class="px-4 py-2 text-sm font-semibold transition-colors"
-                [class.bg-brand-600]="viewMode() === 'month'"
+                [class.bg-action]="viewMode() === 'month'"
                 [class.text-white]="viewMode() === 'month'"
                 [class.bg-white]="viewMode() !== 'month'"
                 [class.text-slate-600]="viewMode() !== 'month'"
@@ -98,8 +178,8 @@ const WEEK_DAY_VISIBLE_CAP = 5;
               </button>
               <button
                 type="button"
-                class="border-l border-brand-200 px-4 py-2 text-sm font-semibold transition-colors"
-                [class.bg-brand-600]="viewMode() === 'week'"
+                class="border-l border-line px-4 py-2 text-sm font-semibold transition-colors"
+                [class.bg-action]="viewMode() === 'week'"
                 [class.text-white]="viewMode() === 'week'"
                 [class.bg-white]="viewMode() !== 'week'"
                 [class.text-slate-600]="viewMode() !== 'week'"
@@ -116,7 +196,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
               <mat-icon>chevron_right</mat-icon>
             </button>
           </div>
-          <p class="text-sm font-semibold text-midnight-900">{{ periodLabel() }}</p>
+          <p class="text-sm font-semibold text-ink">{{ periodLabel() }}</p>
         </div>
 
         @if (viewMode() === 'month') {
@@ -136,9 +216,9 @@ const WEEK_DAY_VISIBLE_CAP = 5;
               <p class="text-xs font-medium uppercase tracking-wide text-red-700">Spent this week</p>
               <p class="text-xl font-semibold text-red-600">{{ weekTotals().spent | currency }}</p>
             </div>
-            <div class="rounded-xl border border-brand-100 bg-brand-50 px-4 py-3">
-              <p class="text-xs font-medium uppercase tracking-wide text-brand-700">Weekly budget</p>
-              <p class="text-xl font-semibold text-brand-700">{{ weeklyBudgetTotal() | currency }}</p>
+            <div class="rounded-xl border border-line bg-action-soft px-4 py-3">
+              <p class="text-xs font-medium uppercase tracking-wide text-action">Weekly budget</p>
+              <p class="text-xl font-semibold text-action">{{ weeklyBudgetTotal() | currency }}</p>
               <p class="mt-0.5 text-xs text-slate-500">Monthly budgets ÷ {{ weeksPerMonth }}</p>
             </div>
             <div
@@ -167,7 +247,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
           <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
             @for (day of weekCells(); track dayKey(day)) {
               <div
-                class="flex max-h-80 min-h-[12rem] flex-col rounded-xl border border-brand-100 bg-white p-3 shadow-sm transition-shadow"
+                class="flex max-h-80 min-h-[12rem] flex-col rounded-xl border border-line bg-white p-3 shadow-sm transition-shadow"
                 [class]="weekDayColumnClass(day)"
               >
                 <button
@@ -179,7 +259,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
                     {{ day | date: 'EEE' }}
                   </p>
                   <div class="flex items-baseline justify-between gap-2">
-                    <p class="text-lg font-semibold text-midnight-900">{{ day | date: 'd' }}</p>
+                    <p class="text-lg font-semibold text-ink">{{ day | date: 'd' }}</p>
                     <p
                       class="text-xs font-semibold"
                       [class.text-emerald-600]="dayNetFor(day) > 0"
@@ -208,7 +288,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
                 @if (weekOverflowCount(day) > 0) {
                   <button
                     type="button"
-                    class="mt-2 w-full rounded-md py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                    class="mt-2 w-full rounded-md py-1.5 text-xs font-medium text-action hover:bg-action-soft"
                     (click)="selectDay(day)"
                   >
                     + {{ weekOverflowCount(day) }} more
@@ -223,7 +303,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
       <div class="grid gap-4 lg:grid-cols-2">
         <mat-card class="app-card">
           <mat-card-header>
-            <mat-card-title class="!text-midnight-900">
+            <mat-card-title class="!text-ink">
               {{ selectedDate() | date: 'fullDate' }}
             </mat-card-title>
             <mat-card-subtitle>
@@ -235,12 +315,12 @@ const WEEK_DAY_VISIBLE_CAP = 5;
           </mat-card-header>
           <mat-card-content>
             <ul
-              class="m-0 list-none divide-y divide-brand-100 overflow-hidden rounded-xl border border-brand-100 p-0"
+              class="m-0 list-none divide-y divide-line overflow-hidden rounded-xl border border-line p-0"
             >
               @for (occ of selectedDayOccurrences(); track occ.id) {
                 <li class="flex items-center justify-between gap-3 px-4 py-3">
                   <div class="min-w-0">
-                    <p class="truncate font-medium text-midnight-900">{{ occ.title }}</p>
+                    <p class="truncate font-medium text-ink">{{ occ.title }}</p>
                     <p class="text-xs text-slate-500">
                       {{ occ.kind }} ·
                       {{ occ.source === 'scheduled' ? 'Scheduled' : 'Posted' }}
@@ -256,7 +336,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
                 </li>
               } @empty {
                 <li class="px-4 py-6 text-center text-sm text-slate-500">
-                  Nothing on this day. Click a count on the calendar or add a bill below.
+                  Nothing planned or posted for this day.
                 </li>
               }
             </ul>
@@ -280,7 +360,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
                 @for (occ of upcoming(); track occ.id) {
                   <li class="flex items-start justify-between gap-2 text-sm">
                     <div class="min-w-0">
-                      <p class="truncate font-medium text-midnight-900">{{ occ.title }}</p>
+                      <p class="truncate font-medium text-ink">{{ occ.title }}</p>
                       <p class="text-xs text-slate-500">{{ occ.date | date: 'EEE, MMM d' }}</p>
                     </div>
                     <span
@@ -292,44 +372,106 @@ const WEEK_DAY_VISIBLE_CAP = 5;
                     </span>
                   </li>
                 } @empty {
-                  <li class="text-sm text-slate-500">No upcoming scheduled items.</li>
+                  <li class="rounded-xl border border-line bg-surface px-3 py-3 text-sm text-slate-500">
+                    Nothing scheduled in the next 7 days. Add bills, subscriptions, or income to plan ahead.
+                  </li>
                 }
               </ul>
             </div>
           </mat-card-content>
         </mat-card>
 
-        <mat-card class="app-card">
-          <mat-card-header>
-            <mat-card-title class="!text-base !text-midnight-900">
-              {{ editingId() ? 'Edit scheduled item' : 'Add bill / paycheck' }}
-            </mat-card-title>
-            <mat-card-subtitle>
-              New items post a matching transaction so balances update
-            </mat-card-subtitle>
-          </mat-card-header>
-          <mat-card-content>
-            <form class="flex flex-col gap-1" [formGroup]="form" (ngSubmit)="saveItem()">
-              <mat-form-field>
-                <mat-label>Title</mat-label>
-                <input matInput formControlName="title" autocomplete="off" />
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <h2 class="text-base font-semibold text-ink">Scheduled bills & paychecks</h2>
+            <p class="text-sm text-slate-500">Keep predictable money movement visible before it happens.</p>
+          </div>
+          @if (!scheduleSheetOpen()) {
+            <button mat-flat-button color="primary" type="button" (click)="startNewItem()">
+              <mat-icon>add</mat-icon>
+              Add item
+            </button>
+          }
+        </div>
+
+      <mat-card class="app-card">
+        <mat-card-header>
+          <mat-card-title class="!text-base !text-ink">Scheduled bills & paychecks</mat-card-title>
+          <mat-card-subtitle>{{ activeScheduledCount() }} active · {{ scheduled().length }} total</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <ul
+            class="m-0 list-none divide-y divide-line overflow-hidden rounded-xl border border-line p-0"
+          >
+            @for (item of scheduled(); track item.id) {
+              <li class="flex items-center gap-2 px-3 py-2.5">
+                <div class="min-w-0 flex-1">
+                  <p class="truncate text-sm font-medium text-ink">
+                    {{ item.title }}
+                    @if (!item.isActive) {
+                      <span class="ml-1 text-xs text-slate-400">(paused)</span>
+                    }
+                  </p>
+                  <p class="text-xs text-slate-500">
+                    {{ item.kind }} · {{ scheduleLabel(item) }} · {{ item.amount | currency }}
+                  </p>
+                </div>
+                <button mat-icon-button type="button" (click)="startEdit(item)" [attr.aria-label]="'Edit ' + item.title">
+                  <mat-icon>edit</mat-icon>
+                </button>
+                <button
+                  mat-icon-button
+                  color="warn"
+                  type="button"
+                  (click)="removeItem(item)"
+                  [attr.aria-label]="'Delete ' + item.title"
+                >
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </li>
+            } @empty {
+              <li class="px-4 py-5 text-center text-sm text-slate-500">
+                No scheduled items yet. Add rent, paychecks, subscriptions, or one-time bills to plan ahead.
+              </li>
+            }
+          </ul>
+        </mat-card-content>
+      </mat-card>
+    </div>
+
+    @if (scheduleSheetOpen()) {
+      <app-modal-sheet
+        [title]="editingId() ? 'Edit scheduled item' : 'Add bill / paycheck'"
+        subtitle="Saving creates matching transactions on scheduled dates so balances and reports stay current."
+        [ariaLabel]="editingId() ? 'Edit scheduled item' : 'Add bill or paycheck'"
+        (closed)="cancelEdit()"
+      >
+        <form id="schedule-form" class="space-y-5" [formGroup]="form" (ngSubmit)="saveItem()">
+          <section class="space-y-3">
+            <p class="kicker">What and how much</p>
+            <mat-form-field appearance="outline">
+              <mat-label>Title</mat-label>
+              <input matInput formControlName="title" autocomplete="off" />
+            </mat-form-field>
+            <div class="grid gap-3 sm:grid-cols-[1fr_1.1fr]">
+              <mat-form-field appearance="outline">
+                <mat-label>Amount</mat-label>
+                <input matInput type="number" step="0.01" min="0.01" formControlName="amount" />
               </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Kind</mat-label>
+                <mat-select formControlName="kind" panelClass="calendar-select-panel">
+                  <mat-option value="expense">Bill / expense</mat-option>
+                  <mat-option value="income">Income</mat-option>
+                </mat-select>
+              </mat-form-field>
+            </div>
+          </section>
 
-              <div class="grid grid-cols-1 gap-1 sm:grid-cols-2">
-                <mat-form-field>
-                  <mat-label>Amount</mat-label>
-                  <input matInput type="number" step="0.01" min="0.01" formControlName="amount" />
-                </mat-form-field>
-                <mat-form-field>
-                  <mat-label>Kind</mat-label>
-                  <mat-select formControlName="kind" panelClass="calendar-select-panel">
-                    <mat-option value="expense">Bill / expense</mat-option>
-                    <mat-option value="income">Income</mat-option>
-                  </mat-select>
-                </mat-form-field>
-              </div>
-
-              <mat-form-field>
+          <section class="rounded-2xl border border-line bg-action-soft/40 p-4">
+            <p class="kicker">Schedule</p>
+            <div class="mt-3 space-y-3">
+              <mat-form-field appearance="outline">
                 <mat-label>Schedule</mat-label>
                 <mat-select formControlName="scheduleType" panelClass="calendar-select-panel">
                   <mat-option value="monthly">Monthly on a day</mat-option>
@@ -339,13 +481,13 @@ const WEEK_DAY_VISIBLE_CAP = 5;
               </mat-form-field>
 
               @if (scheduleType() === 'monthly') {
-                <mat-form-field>
+                <mat-form-field appearance="outline">
                   <mat-label>Day of month</mat-label>
                   <input matInput type="number" min="1" max="31" formControlName="dayOfMonth" />
                 </mat-form-field>
               }
               @if (scheduleType() === 'weekly') {
-                <mat-form-field>
+                <mat-form-field appearance="outline">
                   <mat-label>Weekday</mat-label>
                   <mat-select formControlName="dayOfWeek" panelClass="calendar-select-panel">
                     <mat-option [value]="1">Monday</mat-option>
@@ -359,100 +501,58 @@ const WEEK_DAY_VISIBLE_CAP = 5;
                 </mat-form-field>
               }
               @if (scheduleType() === 'fixed') {
-                <mat-form-field>
+                <mat-form-field appearance="outline">
                   <mat-label>Date</mat-label>
                   <input matInput type="date" formControlName="fixedDate" />
                 </mat-form-field>
               }
 
-              <mat-form-field>
+              <mat-form-field appearance="outline">
                 <mat-label>Starts</mat-label>
                 <input matInput type="date" formControlName="startDate" />
               </mat-form-field>
+            </div>
+          </section>
 
-              <mat-form-field>
-                <mat-label>Account</mat-label>
-                <mat-select formControlName="accountId" panelClass="calendar-select-panel">
-                  @for (a of accounts(); track a.id) {
-                    <mat-option [value]="a.id">{{ a.name }}</mat-option>
-                  }
-                </mat-select>
-                <mat-hint>Required — posts a transaction that updates balances</mat-hint>
-              </mat-form-field>
-
-              <mat-form-field>
-                <mat-label>Category (optional)</mat-label>
-                <mat-select formControlName="categoryId" panelClass="calendar-select-panel">
-                  <mat-option value="">—</mat-option>
-                  @for (c of userCategories(); track c.id) {
-                    <mat-option [value]="c.id">{{ c.name }}</mat-option>
-                  }
-                </mat-select>
-              </mat-form-field>
-
-              <mat-checkbox formControlName="isActive" class="mb-2">Active</mat-checkbox>
-
-              <div class="flex flex-wrap gap-2">
-                <button
-                  mat-flat-button
-                  color="primary"
-                  type="submit"
-                  [disabled]="form.invalid || saving()"
-                >
-                  {{ editingId() ? 'Save' : 'Add' }}
-                </button>
-                @if (editingId()) {
-                  <button mat-button type="button" (click)="cancelEdit()">Cancel</button>
+          <section class="space-y-3">
+            <p class="kicker">Account and category</p>
+            <mat-form-field appearance="outline">
+              <mat-label>Account</mat-label>
+              <mat-select formControlName="accountId" panelClass="calendar-select-panel">
+                @for (a of accounts(); track a.id) {
+                  <mat-option [value]="a.id">{{ a.name }}</mat-option>
                 }
-              </div>
-            </form>
-          </mat-card-content>
-        </mat-card>
-      </div>
+              </mat-select>
+              <mat-hint>Required — posts a transaction that updates balances</mat-hint>
+            </mat-form-field>
 
-      <mat-card class="app-card">
-        <mat-card-header>
-          <mat-card-title class="!text-base !text-midnight-900">All scheduled</mat-card-title>
-        </mat-card-header>
-        <mat-card-content>
-          <ul
-            class="m-0 list-none divide-y divide-brand-100 overflow-hidden rounded-xl border border-brand-100 p-0"
-          >
-            @for (item of scheduled(); track item.id) {
-              <li class="flex items-center gap-2 px-3 py-2.5">
-                <div class="min-w-0 flex-1">
-                  <p class="truncate text-sm font-medium text-midnight-900">
-                    {{ item.title }}
-                    @if (!item.isActive) {
-                      <span class="ml-1 text-xs text-slate-400">(paused)</span>
-                    }
-                  </p>
-                  <p class="text-xs text-slate-500">
-                    {{ item.kind }} · {{ scheduleLabel(item) }} · {{ item.amount | currency }}
-                  </p>
-                </div>
-                <button mat-icon-button type="button" (click)="startEdit(item)" aria-label="Edit">
-                  <mat-icon>edit</mat-icon>
-                </button>
-                <button
-                  mat-icon-button
-                  color="warn"
-                  type="button"
-                  (click)="removeItem(item)"
-                  aria-label="Delete"
-                >
-                  <mat-icon>delete</mat-icon>
-                </button>
-              </li>
-            } @empty {
-              <li class="px-4 py-5 text-center text-sm text-slate-500">
-                Add rent, paycheck, or subscriptions above.
-              </li>
-            }
-          </ul>
-        </mat-card-content>
-      </mat-card>
-    </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Category (optional)</mat-label>
+              <mat-select formControlName="categoryId" panelClass="calendar-select-panel">
+                <mat-option value="">—</mat-option>
+                @for (c of userCategories(); track c.id) {
+                  <mat-option [value]="c.id">{{ c.name }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+
+            <mat-checkbox formControlName="isActive">Active</mat-checkbox>
+          </section>
+        </form>
+
+        <button modalActions mat-button type="button" (click)="cancelEdit()">Cancel</button>
+        <button
+          modalActions
+          mat-flat-button
+          color="primary"
+          type="submit"
+          form="schedule-form"
+          [disabled]="form.invalid || saving()"
+        >
+          {{ saving() ? 'Saving…' : editingId() ? 'Save changes' : 'Add item' }}
+        </button>
+      </app-modal-sheet>
+    }
   `,
   styles: `
     /* Month grid only — we provide our own header and week list view. */
@@ -464,6 +564,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
 export class CalendarComponent {
   private readonly fb = inject(FormBuilder);
   private readonly snack = inject(MatSnackBar);
+  private readonly dialog = inject(MatDialog);
   private readonly router = inject(Router);
   private readonly scheduledService = inject(ScheduledItemService);
   private readonly transactionService = inject(TransactionService);
@@ -474,6 +575,8 @@ export class CalendarComponent {
   readonly selectedDate = signal(startOfDay(new Date()));
   readonly viewMode = signal<CalendarView>('month');
   readonly editingId = signal<string | null>(null);
+  readonly showScheduleForm = signal(false);
+  readonly scheduleSheetOpen = computed(() => this.showScheduleForm() || !!this.editingId());
   readonly saving = signal(false);
 
   readonly dayKey = dayKey;
@@ -568,8 +671,32 @@ export class CalendarComponent {
     return filterPostedScheduledOccurrences(
       expandScheduledOccurrences(this.scheduled(), start, end),
       this.transactions()
-    );
+    ).sort((a, b) => a.date.getTime() - b.date.getTime());
   });
+
+  readonly nextUpcoming = computed(() => this.upcoming()[0] ?? null);
+
+  readonly upcomingBillsTotal = computed(() =>
+    roundMoney(
+      this.upcoming()
+        .filter((occ) => occ.amount < 0)
+        .reduce((sum, occ) => sum + Math.abs(occ.amount), 0)
+    )
+  );
+
+  readonly upcomingIncomeTotal = computed(() =>
+    roundMoney(
+      this.upcoming()
+        .filter((occ) => occ.amount > 0)
+        .reduce((sum, occ) => sum + occ.amount, 0)
+    )
+  );
+
+  readonly upcomingNet = computed(() =>
+    roundMoney(this.upcoming().reduce((sum, occ) => sum + occ.amount, 0))
+  );
+
+  readonly activeScheduledCount = computed(() => this.scheduled().filter((item) => item.isActive).length);
 
   readonly weekRange = computed(() => resolveCurrentWeek(this.selectedDate()));
 
@@ -594,6 +721,31 @@ export class CalendarComponent {
   readonly remainingBudget = computed(() =>
     roundMoney(this.weeklyBudgetTotal() - this.weekTotals().spent)
   );
+
+  readonly weekSummaryTitle = computed(() => {
+    const remaining = this.remainingBudget();
+    if (this.weeklyBudgetTotal() <= 0) {
+      return 'Plan this week around scheduled cashflow';
+    }
+    if (remaining < 0) {
+      return `${this.formatMoney(Math.abs(remaining))} over weekly budget`;
+    }
+    return `${this.formatMoney(remaining)} left in weekly budget`;
+  });
+
+  readonly weekSummaryDetail = computed(() => {
+    const upcoming = this.upcoming();
+    if (!upcoming.length) {
+      return 'Nothing scheduled in the next 7 days.';
+    }
+    const bills = upcoming.filter((occ) => occ.amount < 0).length;
+    const income = upcoming.filter((occ) => occ.amount > 0).length;
+    const pieces = [
+      bills ? `${bills} bill${bills === 1 ? '' : 's'}` : null,
+      income ? `${income} income item${income === 1 ? '' : 's'}` : null,
+    ].filter(Boolean);
+    return `${pieces.join(' and ')} scheduled in the next 7 days.`;
+  });
 
   readonly periodLabel = computed(() => {
     if (this.viewMode() === 'month') {
@@ -620,6 +772,14 @@ export class CalendarComponent {
       const checking = accounts.find((a) => a.type === 'checking') ?? accounts[0];
       this.form.patchValue({ accountId: checking.id });
     });
+  }
+
+  private formatMoney(value: number): string {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: 'USD',
+      maximumFractionDigits: 0,
+    }).format(value);
   }
 
   transactionsLinkParams(): Record<string, string> {
@@ -691,10 +851,10 @@ export class CalendarComponent {
   weekDayColumnClass(day: Date): string {
     const parts: string[] = [];
     if (this.isSelected(day)) {
-      parts.push('ring-2 ring-brand-500 border-brand-400');
+      parts.push('ring-2 ring-action/60 border-action');
     }
     if (this.isToday(day)) {
-      parts.push('bg-brand-50');
+      parts.push('bg-action-soft');
     }
     return parts.join(' ');
   }
@@ -725,7 +885,13 @@ export class CalendarComponent {
     return item.scheduleType;
   }
 
+  startNewItem(): void {
+    this.cancelEdit();
+    this.showScheduleForm.set(true);
+  }
+
   startEdit(item: ScheduledItem): void {
+    this.showScheduleForm.set(true);
     this.editingId.set(item.id);
     this.form.patchValue({
       title: item.title,
@@ -743,6 +909,7 @@ export class CalendarComponent {
   }
 
   cancelEdit(): void {
+    this.showScheduleForm.set(false);
     this.editingId.set(null);
     const defaultAccount =
       this.accounts().find((a) => a.type === 'checking')?.id ?? this.accounts()[0]?.id ?? '';
@@ -851,7 +1018,14 @@ export class CalendarComponent {
   }
 
   async removeItem(item: ScheduledItem): Promise<void> {
-    if (!confirm(`Delete “${item.title}”?`)) return;
+    const confirmed = await confirmDialog(this.dialog, {
+      title: `Delete ${item.title}?`,
+      message: 'This removes the scheduled bill or paycheck from future planning.',
+      detail: 'Already-posted transactions remain in Activity unless you delete them separately.',
+      confirmLabel: 'Delete scheduled item',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
     try {
       await this.scheduledService.remove(item.id);
       if (this.editingId() === item.id) this.cancelEdit();
