@@ -755,7 +755,7 @@ export class CalendarComponent {
   readonly weekCells = computed(() => weekDays(this.weekStart()));
 
   readonly weekTotals = computed(() =>
-    computePeriodTotals(this.transactions(), [], this.weekRange(), false)
+    computePeriodTotals(this.transactions(), [], this.weekRange())
   );
 
   readonly weeklyBudgetTotal = computed(() =>

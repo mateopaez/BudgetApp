@@ -517,7 +517,6 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
               <mat-option value="income">Income</mat-option>
               <mat-option value="transfer">Transfers</mat-option>
               <mat-option value="cc_payment">CC payments</mat-option>
-              <mat-option value="refund">Refunds</mat-option>
             </mat-select>
           </mat-form-field>
 
@@ -546,8 +545,11 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
         </div>
 
         <div class="mt-4 flex flex-wrap items-center gap-4 border-t border-line pt-4">
-          <mat-slide-toggle formControlName="hideCcAndRefunds">
-            Hide CC payments &amp; refunds
+          <mat-slide-toggle formControlName="hideCcPayments">
+            Hide CC payments
+          </mat-slide-toggle>
+          <mat-slide-toggle formControlName="hideTransfers">
+            Hide transfers
           </mat-slide-toggle>
         </div>
       </div>
@@ -872,7 +874,6 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
               <mat-option value="income">Income</mat-option>
               <mat-option value="transfer">Transfers</mat-option>
               <mat-option value="cc_payment">CC payments</mat-option>
-              <mat-option value="refund">Refunds</mat-option>
             </mat-select>
           </mat-form-field>
           <mat-form-field>
@@ -896,7 +897,8 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
               <mat-option value="merchant_asc">Merchant (A–Z)</mat-option>
             </mat-select>
           </mat-form-field>
-          <mat-slide-toggle formControlName="hideCcAndRefunds">Hide CC payments &amp; refunds</mat-slide-toggle>
+          <mat-slide-toggle formControlName="hideCcPayments">Hide CC payments</mat-slide-toggle>
+          <mat-slide-toggle formControlName="hideTransfers">Hide transfers</mat-slide-toggle>
         </form>
         <button modalActions mat-button type="button" (click)="clearFilters()">Reset</button>
         <button modalActions mat-flat-button color="primary" type="button" (click)="mobileFiltersOpen.set(false)">Show results</button>
@@ -1083,7 +1085,8 @@ export class TransactionsComponent implements OnInit {
     to: this.fb.control<Date | null>(null),
     kind: this.fb.nonNullable.control<KindFilter>('all'),
     categoryId: this.fb.nonNullable.control(''),
-    hideCcAndRefunds: this.fb.nonNullable.control(false),
+    hideCcPayments: this.fb.nonNullable.control(false),
+    hideTransfers: this.fb.nonNullable.control(false),
     sort: this.fb.nonNullable.control<SortOption>('date_desc'),
   });
 
@@ -1100,7 +1103,8 @@ export class TransactionsComponent implements OnInit {
       f.period !== 'all',
       f.kind !== 'all',
       !!f.categoryId,
-      !!f.hideCcAndRefunds,
+      !!f.hideCcPayments,
+      !!f.hideTransfers,
       f.sort !== 'date_desc',
     ].filter(Boolean).length;
   });
@@ -1129,7 +1133,8 @@ export class TransactionsComponent implements OnInit {
       accountId: f.accountId ?? '',
       kind: f.kind ?? 'all',
       categoryId: f.categoryId ?? '',
-      hideCcAndRefunds: !!f.hideCcAndRefunds,
+      hideCcPayments: !!f.hideCcPayments,
+      hideTransfers: !!f.hideTransfers,
       sort: f.sort ?? 'date_desc',
     });
     const query = (f.search ?? '').trim().toLowerCase();
@@ -1218,7 +1223,8 @@ export class TransactionsComponent implements OnInit {
         to: parseDateParam(q.get('to')),
         kind: this.isKindFilter(kind) ? kind : 'all',
         categoryId: q.get('categoryId') ?? '',
-        hideCcAndRefunds: q.get('hideCc') === '1',
+        hideCcPayments: q.get('hideCc') === '1',
+        hideTransfers: q.get('hideTransfers') === '1',
         sort: (q.get('sort') as SortOption) ?? 'date_desc',
       },
       { emitEvent: true }
@@ -1262,7 +1268,8 @@ export class TransactionsComponent implements OnInit {
           to: v.period === 'custom' && v.to ? formatDateParam(v.to) : null,
           kind: v.kind === 'all' ? null : v.kind,
           categoryId: v.categoryId || null,
-          hideCc: v.hideCcAndRefunds ? '1' : null,
+          hideCc: v.hideCcPayments ? '1' : null,
+          hideTransfers: v.hideTransfers ? '1' : null,
           sort: v.sort === 'date_desc' ? null : v.sort,
           action: null,
           import: null,
@@ -1287,7 +1294,7 @@ export class TransactionsComponent implements OnInit {
   }
 
   private isKindFilter(value: string): value is KindFilter {
-    return ['all', 'expense', 'income', 'transfer', 'cc_payment', 'refund'].includes(value);
+    return ['all', 'expense', 'income', 'transfer', 'cc_payment'].includes(value);
   }
 
   compareIds = (a: string | null, b: string | null): boolean => a === b;
@@ -1338,7 +1345,8 @@ export class TransactionsComponent implements OnInit {
       to: null,
       kind: 'all',
       categoryId: '',
-      hideCcAndRefunds: false,
+      hideCcPayments: false,
+      hideTransfers: false,
       sort: 'date_desc',
     });
     this.snack.open(`Filters cleared. ${this.transactions().length} transactions shown.`, 'Dismiss', {
@@ -1364,7 +1372,8 @@ export class TransactionsComponent implements OnInit {
       f.to ||
       f.kind !== 'all' ||
       f.categoryId ||
-      f.hideCcAndRefunds ||
+      f.hideCcPayments ||
+      f.hideTransfers ||
       f.sort !== 'date_desc'
     );
   }
@@ -1389,8 +1398,6 @@ export class TransactionsComponent implements OnInit {
     switch (tx.kind) {
       case 'cc_payment':
         return 'Credit card payment';
-      case 'refund':
-        return 'Refund';
       default:
         return tx.kind.charAt(0).toUpperCase() + tx.kind.slice(1);
     }
@@ -1406,8 +1413,6 @@ export class TransactionsComponent implements OnInit {
         return 'sync_alt';
       case 'cc_payment':
         return 'credit_card';
-      case 'refund':
-        return 'undo';
     }
   }
 
@@ -1417,8 +1422,6 @@ export class TransactionsComponent implements OnInit {
         return 'bg-finance-incomeSoft text-finance-income';
       case 'expense':
         return 'bg-finance-expenseSoft text-finance-expense';
-      case 'refund':
-        return 'bg-sky-100 text-sky-700';
       case 'cc_payment':
         return 'bg-finance-warningSoft text-finance-warning';
       case 'transfer':
@@ -1426,11 +1429,8 @@ export class TransactionsComponent implements OnInit {
     }
   }
 
-  selectableCategories(tx: Transaction): Category[] {
-    if (tx.kind === 'income') {
-      return this.categories().filter((c) => !c.isSystem);
-    }
-    return this.categories().filter((c) => !c.isSystem || c.systemKey === 'refund');
+  selectableCategories(_tx: Transaction): Category[] {
+    return this.categories().filter((c) => !c.isSystem);
   }
 
   toggleImport(): void {

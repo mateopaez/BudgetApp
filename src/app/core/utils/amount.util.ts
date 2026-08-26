@@ -26,7 +26,5 @@ export function amountHintForKind(kind: TransactionKind): string {
       return 'Recorded as an outflow from this account';
     case 'cc_payment':
       return 'Recorded as a payment (positive on the card account)';
-    case 'refund':
-      return 'Recorded as a credit (adds to balance)';
   }
 }

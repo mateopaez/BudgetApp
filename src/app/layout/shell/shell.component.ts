@@ -165,6 +165,7 @@ export class ShellComponent implements OnInit {
 
   ngOnInit(): void {
     void this.categoryService.seedIfNeeded();
+    void this.categoryService.migrateAwayFromRefunds();
     void this.accountService.seedIfNeeded();
   }
 

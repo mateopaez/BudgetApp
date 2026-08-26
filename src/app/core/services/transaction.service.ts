@@ -123,7 +123,7 @@ export class TransactionService {
           ? legacyDescription
           : null,
       amount: data['amount'] as number,
-      kind: data['kind'] as Transaction['kind'],
+      kind: normalizeTransactionKind(data['kind']),
       categoryId: (data['categoryId'] as string | null) ?? null,
       split: data['split'] as SplitLine[] | undefined,
       importHash: data['importHash'] as string | undefined,
@@ -292,4 +292,10 @@ export class TransactionService {
     const snap = await getDocs(q);
     return snap.docs.map((d) => this.mapDoc(d.id, d.data()));
   }
+}
+
+/** Coerce legacy `refund` docs to income until migration rewrites them. */
+function normalizeTransactionKind(kind: unknown): TransactionKind {
+  if (kind === 'refund') return 'income';
+  return kind as TransactionKind;
 }

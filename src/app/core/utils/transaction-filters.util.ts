@@ -16,7 +16,8 @@ export interface TransactionFilterState {
   accountId: string;
   kind: KindFilter;
   categoryId: string;
-  hideCcAndRefunds: boolean;
+  hideCcPayments: boolean;
+  hideTransfers: boolean;
   sort: SortOption;
 }
 
@@ -30,8 +31,7 @@ const KIND_SORT_ORDER: Record<TransactionKind, number> = {
   expense: 0,
   transfer: 1,
   cc_payment: 2,
-  refund: 3,
-  income: 4,
+  income: 3,
 };
 
 export function filterTransactions(
@@ -65,8 +65,12 @@ export function filterTransactions(
     });
   }
 
-  if (state.hideCcAndRefunds) {
-    list = list.filter((tx) => tx.kind !== 'cc_payment' && tx.kind !== 'refund');
+  if (state.hideCcPayments) {
+    list = list.filter((tx) => tx.kind !== 'cc_payment');
+  }
+
+  if (state.hideTransfers) {
+    list = list.filter((tx) => tx.kind !== 'transfer');
   }
 
   return sortTransactions(list, state.sort);
@@ -124,7 +128,7 @@ export function transactionAmountClass(tx: Transaction): string {
   if (tx.kind === 'expense' || (tx.kind === 'transfer' && tx.amount < 0)) {
     return 'text-red-600';
   }
-  if (tx.kind === 'income' || tx.kind === 'refund') {
+  if (tx.kind === 'income') {
     return 'text-action';
   }
   return 'text-slate-600';

@@ -8,7 +8,6 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
-import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { BudgetService } from '../../core/services/budget.service';
 import { CategoryService } from '../../core/services/category.service';
 import { AccountService } from '../../core/services/account.service';
@@ -33,7 +32,6 @@ import { toLoadableSignal } from '../../core/utils/loadable-signal.util';
     CurrencyPipe,
     PercentPipe,
     RouterLink,
-    MatSlideToggleModule,
     MatFormFieldModule,
     MatSelectModule,
     MatDatepickerModule,
@@ -166,9 +164,6 @@ import { toLoadableSignal } from '../../core/utils/loadable-signal.util';
               </mat-form-field>
             }
           </div>
-          <mat-slide-toggle [checked]="refundsOffset()" (change)="refundsOffset.set($event.checked)">
-            Refunds offset spending
-          </mat-slide-toggle>
         </div>
       </section>
 
@@ -328,7 +323,6 @@ export class DashboardComponent {
   private readonly scheduledService = inject(ScheduledItemService);
   private readonly dashboardService = inject(DashboardService);
 
-  readonly refundsOffset = signal(false);
   readonly drillCategoryId = signal<string>('');
 
   readonly periodForm = this.fb.group({
@@ -411,17 +405,17 @@ export class DashboardComponent {
   );
 
   readonly summary = computed(() =>
-    this.dashboardService.computePeriodSummary(this.transactions(), this.dateRange(), this.refundsOffset())
+    this.dashboardService.computePeriodSummary(this.transactions(), this.dateRange())
   );
 
   readonly incomeSeries = computed(() =>
-    this.dashboardService.computeMonthlySeries(this.transactions(), this.dateRange(), 'income', this.refundsOffset())
+    this.dashboardService.computeMonthlySeries(this.transactions(), this.dateRange(), 'income')
   );
   readonly expenseSeries = computed(() =>
-    this.dashboardService.computeMonthlySeries(this.transactions(), this.dateRange(), 'expenses', this.refundsOffset())
+    this.dashboardService.computeMonthlySeries(this.transactions(), this.dateRange(), 'expenses')
   );
   readonly savingsSeries = computed(() =>
-    this.dashboardService.computeMonthlySeries(this.transactions(), this.dateRange(), 'savings', this.refundsOffset())
+    this.dashboardService.computeMonthlySeries(this.transactions(), this.dateRange(), 'savings')
   );
 
   readonly monthlyOverviewDatasets = computed(() => [
@@ -434,8 +428,7 @@ export class DashboardComponent {
     this.dashboardService.computeExpenseByCategory(
       this.transactions(),
       this.categories(),
-      this.dateRange(),
-      this.refundsOffset()
+      this.dateRange()
     )
   );
 
@@ -452,7 +445,6 @@ export class DashboardComponent {
 
   readonly categoryRows = computed(() =>
     buildCategorySpendRows(this.transactions(), this.categories(), this.budgets(), this.dateRange(), {
-      refundsOffset: this.refundsOffset(),
       budgetAs: 'monthly',
     }).filter((r) => r.spent > 0 || r.budgetAmount != null)
   );
@@ -558,8 +550,7 @@ export class DashboardComponent {
     return this.dashboardService.computeCategoryMonthlySeries(
       this.transactions(),
       id,
-      this.dateRange(),
-      this.refundsOffset()
+      this.dateRange()
     );
   });
 

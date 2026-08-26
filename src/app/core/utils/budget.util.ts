@@ -21,32 +21,24 @@ export interface CategorySpendRow {
 export function computeCategorySpend(
   transactions: Transaction[],
   categoryId: string,
-  range: ResolvedDateRange,
-  refundsOffset = false
+  range: ResolvedDateRange
 ): number {
   let spent = 0;
 
   for (const tx of transactions) {
     if (!isWithinDateRange(tx.postedAt, range)) continue;
+    if (tx.kind !== 'expense') continue;
 
-    if (tx.kind === 'expense') {
-      if (tx.split?.length) {
-        for (const line of tx.split) {
-          if (line.categoryId === categoryId) {
-            spent += Math.abs(line.amount);
-          }
+    if (tx.split?.length) {
+      for (const line of tx.split) {
+        if (line.categoryId === categoryId) {
+          spent += Math.abs(line.amount);
         }
-      } else if (categoryId === UNCATEGORIZED_ID) {
-        if (!tx.categoryId) spent += Math.abs(tx.amount);
-      } else if (tx.categoryId === categoryId) {
-        spent += Math.abs(tx.amount);
       }
-    } else if (refundsOffset && tx.kind === 'refund') {
-      if (categoryId === UNCATEGORIZED_ID && !tx.categoryId) {
-        spent -= Math.abs(tx.amount);
-      } else if (tx.categoryId === categoryId) {
-        spent -= Math.abs(tx.amount);
-      }
+    } else if (categoryId === UNCATEGORIZED_ID) {
+      if (!tx.categoryId) spent += Math.abs(tx.amount);
+    } else if (tx.categoryId === categoryId) {
+      spent += Math.abs(tx.amount);
     }
   }
 
@@ -56,18 +48,14 @@ export function computeCategorySpend(
 export function computeAllCategorySpend(
   transactions: Transaction[],
   categories: Category[],
-  range: ResolvedDateRange,
-  refundsOffset = false
+  range: ResolvedDateRange
 ): Map<string, number> {
   const spend = new Map<string, number>();
   for (const cat of categories) {
     if (cat.isSystem) continue;
-    spend.set(cat.id, computeCategorySpend(transactions, cat.id, range, refundsOffset));
+    spend.set(cat.id, computeCategorySpend(transactions, cat.id, range));
   }
-  spend.set(
-    UNCATEGORIZED_ID,
-    computeCategorySpend(transactions, UNCATEGORIZED_ID, range, refundsOffset)
-  );
+  spend.set(UNCATEGORIZED_ID, computeCategorySpend(transactions, UNCATEGORIZED_ID, range));
   return spend;
 }
 
@@ -92,16 +80,14 @@ export function buildCategorySpendRows(
   budgets: CategoryBudget[],
   range: ResolvedDateRange,
   options: {
-    refundsOffset?: boolean;
     budgetAs?: 'monthly' | 'weekly' | 'as_configured';
     includeZero?: boolean;
   } = {}
 ): CategorySpendRow[] {
-  const refundsOffset = options.refundsOffset ?? false;
   const budgetAs = options.budgetAs ?? 'as_configured';
   const includeZero = options.includeZero ?? false;
   const budgetByCategory = new Map(budgets.map((b) => [b.categoryId, b]));
-  const spendMap = computeAllCategorySpend(transactions, categories, range, refundsOffset);
+  const spendMap = computeAllCategorySpend(transactions, categories, range);
 
   const totalSpent = [...spendMap.values()].reduce((sum, v) => sum + v, 0);
   const rows: CategorySpendRow[] = [];
@@ -150,8 +136,7 @@ export function buildCategorySpendRows(
 export function computePeriodTotals(
   transactions: Transaction[],
   accounts: { id: string; type: string }[],
-  range: ResolvedDateRange,
-  refundsOffset = false
+  range: ResolvedDateRange
 ): { spent: number; income: number; net: number; savingsChange: number } {
   const savingsIds = new Set(accounts.filter((a) => a.type === 'savings').map((a) => a.id));
   let spent = 0;
@@ -165,8 +150,6 @@ export function computePeriodTotals(
 
     if (tx.kind === 'expense') {
       spent += Math.abs(tx.amount);
-    } else if (tx.kind === 'refund' && refundsOffset) {
-      spent -= Math.abs(tx.amount);
     }
 
     if (tx.kind === 'income') {

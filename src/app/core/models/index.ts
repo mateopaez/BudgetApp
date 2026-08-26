@@ -1,5 +1,5 @@
 export type AccountType = 'checking' | 'savings' | 'credit_card';
-export type TransactionKind = 'expense' | 'income' | 'transfer' | 'cc_payment' | 'refund';
+export type TransactionKind = 'expense' | 'income' | 'transfer' | 'cc_payment';
 
 export interface Account {
   id: string;
@@ -15,7 +15,7 @@ export interface Category {
   id: string;
   name: string;
   isSystem: boolean;
-  systemKey?: 'cc_payment' | 'refund';
+  systemKey?: 'cc_payment';
   createdAt: Date;
 }
 
@@ -88,7 +88,6 @@ export const DEFAULT_CATEGORIES = [
 
 export const SYSTEM_CATEGORIES = [
   { name: 'Credit Card Payment', systemKey: 'cc_payment' as const },
-  { name: 'Refund/Credit', systemKey: 'refund' as const },
 ];
 
 export const DEFAULT_ACCOUNTS = [

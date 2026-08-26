@@ -12,6 +12,7 @@ import {
   serverTimestamp,
   updateDoc,
   where,
+  writeBatch,
 } from '@angular/fire/firestore';
 import { Observable } from 'rxjs';
 import { Category, DEFAULT_CATEGORIES, SYSTEM_CATEGORIES } from '../models';
@@ -93,8 +94,46 @@ export class CategoryService {
     await deleteDoc(doc(this.firestore, `users/${uid}/categories/${id}`));
   }
 
-  getSystemCategoryId(categories: Category[], key: 'cc_payment' | 'refund'): string | null {
+  getSystemCategoryId(categories: Category[], key: 'cc_payment'): string | null {
     return categories.find((c) => c.systemKey === key)?.id ?? null;
+  }
+
+  /**
+   * One-time cleanup: convert legacy `refund` transactions to `income` and
+   * remove the Refund/Credit system category if present.
+   */
+  async migrateAwayFromRefunds(): Promise<void> {
+    const uid = this.auth.uid();
+    if (!uid) return;
+
+    const categoriesRef = collection(this.firestore, `users/${uid}/categories`);
+    const categoriesSnap = await getDocs(categoriesRef);
+    const refundCategoryIds = categoriesSnap.docs
+      .filter((d) => d.data()['systemKey'] === 'refund')
+      .map((d) => d.id);
+
+    const txsRef = collection(this.firestore, `users/${uid}/transactions`);
+    const refundTxSnap = await getDocs(query(txsRef, where('kind', '==', 'refund')));
+
+    const chunkSize = 400;
+    const docs = refundTxSnap.docs;
+    for (let i = 0; i < docs.length; i += chunkSize) {
+      const batch = writeBatch(this.firestore);
+      docs.slice(i, i + chunkSize).forEach((d) => {
+        const categoryId = d.data()['categoryId'] as string | null | undefined;
+        const clearRefundCategory = !!(categoryId && refundCategoryIds.includes(categoryId));
+        batch.update(d.ref, {
+          kind: 'income',
+          updatedAt: serverTimestamp(),
+          ...(clearRefundCategory ? { categoryId: null } : {}),
+        });
+      });
+      await batch.commit();
+    }
+
+    for (const id of refundCategoryIds) {
+      await deleteDoc(doc(this.firestore, `users/${uid}/categories/${id}`));
+    }
   }
 
   async getExistingImportHashes(accountId: string, hashes: string[]): Promise<Set<string>> {

@@ -82,7 +82,6 @@ export interface TransactionFormResult {
                 <mat-option value="income">Income</mat-option>
                 <mat-option value="transfer">Transfer</mat-option>
                 <mat-option value="cc_payment">Credit card payment</mat-option>
-                <mat-option value="refund">Refund / credit</mat-option>
               </mat-select>
               <mat-hint>{{ kindExplanation() }}</mat-hint>
             </mat-form-field>
@@ -221,8 +220,6 @@ export class TransactionFormDialogComponent implements OnInit {
         return 'Movement between accounts. Category is not used.';
       case 'cc_payment':
         return 'Payment toward a credit card. Can be hidden from spending reports.';
-      case 'refund':
-        return 'Credit or refund. Can offset spending in reports.';
       default:
         return '';
     }

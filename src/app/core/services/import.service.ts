@@ -127,7 +127,6 @@ export class ImportService {
     }
 
     const ccPaymentId = this.categoryService.getSystemCategoryId(categories, 'cc_payment');
-    const refundId = this.categoryService.getSystemCategoryId(categories, 'refund');
     const mapped: ParsedImportRow[] = [];
 
     for (let i = 0; i < rows.length; i++) {
@@ -145,8 +144,7 @@ export class ImportService {
         typeRaw,
         merchant,
         profile.detectCcPayments,
-        ccPaymentId,
-        refundId
+        ccPaymentId
       );
 
       const importHash = await sha1(
@@ -223,7 +221,7 @@ export class ImportService {
     }
 
     const typeRaw = profile.mapping.type ? row[profile.mapping.type] : null;
-    const { kind } = this.detectKind(amount, typeRaw, merchant, profile.detectCcPayments, null, null);
+    const { kind } = this.detectKind(amount, typeRaw, merchant, profile.detectCcPayments, null);
 
     return { rowIndex, postedAt, merchant, amount, kind, error: null };
   }
@@ -233,8 +231,7 @@ export class ImportService {
     typeRaw: string | null | undefined,
     merchant: string,
     detectCcPayments: boolean,
-    ccPaymentId: string | null,
-    refundId: string | null
+    ccPaymentId: string | null
   ): { kind: TransactionKind; categoryId: string | null } {
     if (amount < 0) {
       return { kind: 'expense', categoryId: null };
@@ -248,6 +245,6 @@ export class ImportService {
       }
     }
 
-    return { kind: 'refund', categoryId: refundId };
+    return { kind: 'income', categoryId: null };
   }
 }
