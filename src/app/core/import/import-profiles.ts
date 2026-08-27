@@ -1,6 +1,5 @@
 import {
   AmountSignConvention,
-  EMPTY_IMPORT_MAPPING,
   ImportColumnMapping,
   ImportProfileConfig,
 } from '../models/import.model';
@@ -16,24 +15,24 @@ export const BUILTIN_IMPORT_PROFILES: ImportProfileConfig[] = [
       date: 'Date',
       merchant: 'Description',
       amount: 'Amount',
-      debit: null,
-      credit: null,
+      withdrawal: null,
+      deposit: null,
       type: 'Type',
       memo: null,
     },
   },
   {
-    id: 'builtin:debit-credit',
-    name: 'Debit / Credit columns (Date, Description, Debit, Credit)',
+    id: 'builtin:withdrawal-deposit',
+    name: 'Withdrawal / Deposit columns (Date, Description, Withdrawal, Deposit)',
     isBuiltin: true,
     amountSign: 'negative_expense',
-    detectCcPayments: false,
+    detectCcPayments: true,
     mapping: {
       date: 'Transaction Date',
       merchant: 'Description',
       amount: null,
-      debit: 'Debit',
-      credit: 'Credit',
+      withdrawal: 'Withdrawal',
+      deposit: 'Deposit',
       type: null,
       memo: null,
     },
@@ -48,8 +47,8 @@ export const BUILTIN_IMPORT_PROFILES: ImportProfileConfig[] = [
       date: 'Date',
       merchant: 'Description',
       amount: 'Amount',
-      debit: null,
-      credit: null,
+      withdrawal: null,
+      deposit: null,
       type: null,
       memo: null,
     },
@@ -100,8 +99,8 @@ export function remapProfileToHeaders(
       date: remap(profile.mapping.date),
       merchant: remap(profile.mapping.merchant),
       amount: remap(profile.mapping.amount),
-      debit: remap(profile.mapping.debit),
-      credit: remap(profile.mapping.credit),
+      withdrawal: remap(profile.mapping.withdrawal),
+      deposit: remap(profile.mapping.deposit),
       type: remap(profile.mapping.type),
       memo: remap(profile.mapping.memo),
     },
@@ -121,8 +120,8 @@ function guessColumn(headers: string[], target: string): string | null {
     date: ['transaction date', 'posting date', 'posted date', 'trans date'],
     description: ['merchant', 'payee', 'details', 'narrative', 'name'],
     amount: ['transaction amount', 'value', 'sum'],
-    debit: ['withdrawal', 'debit amount', 'money out'],
-    credit: ['deposit', 'credit amount', 'money in'],
+    withdrawal: ['debit', 'debit amount', 'money out', 'withdrawal'],
+    deposit: ['credit', 'credit amount', 'money in', 'deposit'],
     type: ['transaction type', 'trans type'],
     memo: ['notes', 'memo', 'category'],
   };
@@ -147,8 +146,8 @@ export function guessMappingFromHeaders(headers: string[]): ImportColumnMapping 
     date: guessColumn(headers, 'Date'),
     merchant: guessColumn(headers, 'Description') ?? guessColumn(headers, 'Merchant'),
     amount: guessColumn(headers, 'Amount'),
-    debit: guessColumn(headers, 'Debit'),
-    credit: guessColumn(headers, 'Credit'),
+    withdrawal: guessColumn(headers, 'Withdrawal') ?? guessColumn(headers, 'Debit'),
+    deposit: guessColumn(headers, 'Deposit') ?? guessColumn(headers, 'Credit'),
     type: guessColumn(headers, 'Type'),
     memo: guessColumn(headers, 'Memo'),
   };
@@ -177,15 +176,15 @@ export function profileFromHeaders(headers: string[]): ImportProfileConfig {
 export function isMappingComplete(mapping: ImportColumnMapping): boolean {
   if (!mapping.date || !mapping.merchant) return false;
   const hasAmount = !!mapping.amount;
-  const hasDebitCredit = !!mapping.debit || !!mapping.credit;
-  return hasAmount || hasDebitCredit;
+  const hasWithdrawalDeposit = !!mapping.withdrawal || !!mapping.deposit;
+  return hasAmount || hasWithdrawalDeposit;
 }
 
 export function mappingValidationError(mapping: ImportColumnMapping): string | null {
   if (!mapping.date) return 'Map a Date column';
   if (!mapping.merchant) return 'Map a Merchant / Description column';
-  if (!mapping.amount && !mapping.debit && !mapping.credit) {
-    return 'Map an Amount column or Debit/Credit columns';
+  if (!mapping.amount && !mapping.withdrawal && !mapping.deposit) {
+    return 'Map an Amount column or Withdrawal/Deposit columns';
   }
   return null;
 }

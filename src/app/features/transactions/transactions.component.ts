@@ -16,6 +16,7 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatMenuModule } from '@angular/material/menu';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { fromEvent, merge } from 'rxjs';
 import { Category, ParsedImportRow, Transaction } from '../../core/models';
 import { AccountService } from '../../core/services/account.service';
@@ -49,6 +50,11 @@ import { ImportMapperComponent } from './import-mapper.component';
 import { confirmDialog } from '../../shared/confirm-dialog/confirm-dialog.component';
 import { ModalSheetComponent } from '../../shared/modal-sheet/modal-sheet.component';
 import { toLoadableSignal } from '../../core/utils/loadable-signal.util';
+import {
+  isLikelyPaymentOrTransfer as rowLooksLikePaymentOrTransfer,
+  normalizeImportKindText,
+} from '../../core/utils/import-kind-detection.util';
+import { OnboardingService } from '../../core/services/onboarding.service';
 
 type ImportStep = 'upload' | 'map' | 'review';
 type ImportReviewFilter = 'all' | 'ready' | 'duplicates';
@@ -75,6 +81,7 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
     MatDatepickerModule,
     MatSnackBarModule,
     MatMenuModule,
+    MatCheckboxModule,
     ImportMapperComponent,
     ModalSheetComponent,
   ],
@@ -131,6 +138,21 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
         </div>
       </div>
 
+      @if (showFirstRunGuide()) {
+        <section class="first-run-guide" aria-labelledby="first-run-title">
+          <div>
+            <p class="eyebrow">Start here</p>
+            <h2 id="first-run-title">Bring in your first money movement.</h2>
+            <p>Import a bank file if you have one, or add a recent transaction. You can refine categories after.</p>
+          </div>
+          <div class="first-run-actions">
+            <button mat-flat-button color="primary" type="button" (click)="toggleImport()"><mat-icon>upload_file</mat-icon> Import a CSV</button>
+            <button mat-button type="button" (click)="openAdd()"><mat-icon>add</mat-icon> Add it manually</button>
+            <button mat-button type="button" class="guide-skip" (click)="dismissFirstRunGuide()">I’ll do this later</button>
+          </div>
+        </section>
+      }
+
       @if (initialLoading()) {
         <section class="panel animate-pulse p-6" role="status" aria-live="polite">
           <p class="font-semibold text-ink">Loading activity…</p>
@@ -155,8 +177,14 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
       }
 
       @if (showImport()) {
-        <mat-card class="app-card">
-          <mat-card-content class="space-y-5">
+        <app-modal-sheet
+          title="Import activity"
+          subtitle="We’ll recognize the common columns, show what will be added, and keep your CSV on this device."
+          ariaLabel="Import activity"
+          [closeOnBackdrop]="!parsing() && !importing()"
+          (closed)="closeImport()"
+        >
+          <div class="space-y-5">
             <div class="flex items-start justify-between gap-3">
               <div>
                 <p class="font-semibold text-ink">Import transactions</p>
@@ -308,13 +336,26 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
                     </div>
                   </div>
 
+                  @if (importRiskRows().length) {
+                    <section class="import-safety-review" aria-labelledby="import-safety-title">
+                      <p class="eyebrow">Required check</p>
+                      <h3 id="import-safety-title">Check likely payments & transfers</h3>
+                      <p>These {{ importRiskRows().length }} rows can distort Home if treated as income or spending.</p>
+                      <div class="risk-rows">
+                        @for (row of importRiskRows(); track row.importHash) {
+                          <div class="risk-row"><div><strong>{{ row.merchant }}</strong><span>{{ row.postedAt | date:'mediumDate' }} · {{ row.amount | currency }}</span></div><mat-form-field class="compact-field"><mat-label>What is this?</mat-label><mat-select [value]="row.kind" (selectionChange)="setImportedKind(row.importHash, $event.value)"><mat-option value="expense">Expense</mat-option><mat-option value="income">Income</mat-option><mat-option value="transfer">Transfer</mat-option><mat-option value="cc_payment">Card payment</mat-option></mat-select></mat-form-field></div>
+                        }
+                      </div>
+                      <mat-checkbox [checked]="importRisksAcknowledged()" (change)="importRisksAcknowledged.set($event.checked)">I’ve checked these rows. Payments and transfers won’t count as income or spending.</mat-checkbox>
+                    </section>
+                  }
                   <div class="flex flex-wrap items-center gap-3">
                     <button mat-stroked-button type="button" (click)="backToMapping()">Back to mapping</button>
                     <button
                       mat-flat-button
                       color="primary"
                       (click)="confirmImport()"
-                      [disabled]="importNewCount() === 0"
+                      [disabled]="importNewCount() === 0 || (importRiskRows().length > 0 && !importRisksAcknowledged())"
                     >
                       Import {{ importNewCount() }} new transactions
                     </button>
@@ -447,8 +488,11 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
                 </div>
               }
             }
-          </mat-card-content>
-        </mat-card>
+          </div>
+          <div modalActions class="flex justify-end">
+            <button mat-button type="button" (click)="closeImport()" [disabled]="parsing() || importing()">Cancel</button>
+          </div>
+        </app-modal-sheet>
       }
 
       <div class="flex items-center gap-3 sm:hidden">
@@ -938,6 +982,18 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
       </app-modal-sheet>
     }
   `,
+  styles: `
+    .import-safety-review { background:var(--color-surface-raised); border:1px solid var(--color-border); border-left:4px solid var(--color-primary); border-radius:1rem; padding:1rem; }
+    .import-safety-review h3 { font-size:1rem; margin:.25rem 0; } .import-safety-review p { color:var(--color-muted); font-size:.85rem; line-height:1.5; margin:0; } .import-safety-review .eyebrow { color:var(--color-primary); font-size:.68rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase; }
+    .risk-rows { border-top:1px solid var(--color-border); margin:1rem 0; } .risk-row { align-items:center; border-bottom:1px solid var(--color-border); display:flex; gap:1rem; justify-content:space-between; padding:.65rem 0; } .risk-row strong,.risk-row span { display:block; } .risk-row span { color:var(--color-muted); font-size:.78rem; margin-top:.15rem; } .risk-row .mat-mdc-form-field { max-width:185px; }
+    .first-run-guide { align-items:center; background:var(--color-surface-raised); border:1px solid var(--color-border); border-left:4px solid var(--color-primary); border-radius:1.25rem; display:flex; gap:2rem; justify-content:space-between; padding:1.5rem; }
+    .first-run-guide h2 { font-size:1.25rem; letter-spacing:-.03em; margin:.25rem 0 .4rem; }
+    .first-run-guide p { color:var(--color-muted); font-size:.9rem; line-height:1.55; margin:0; max-width:42rem; }
+    .first-run-guide .eyebrow { color:var(--color-primary); font-size:.7rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase; }
+    .first-run-actions { align-items:center; display:flex; flex-wrap:wrap; gap:.4rem; justify-content:flex-end; }
+    .guide-skip { color:var(--color-muted); }
+    @media (max-width:720px) { .first-run-guide { align-items:flex-start; flex-direction:column; gap:1rem; padding:1.25rem; } .first-run-actions { justify-content:flex-start; } }
+  `,
 })
 export class TransactionsComponent implements OnInit {
   readonly transactionListPageSize = TRANSACTION_LIST_PAGE_SIZE;
@@ -948,6 +1004,7 @@ export class TransactionsComponent implements OnInit {
   private readonly importService = inject(ImportService);
   private readonly importProfileService = inject(ImportProfileService);
   private readonly transactionService = inject(TransactionService);
+  private readonly onboarding = inject(OnboardingService);
   private readonly dialog = inject(MatDialog);
   private readonly snack = inject(MatSnackBar);
   private readonly route = inject(ActivatedRoute);
@@ -977,6 +1034,9 @@ export class TransactionsComponent implements OnInit {
       this.transactionState.error()
   );
   readonly transactionCount = computed(() => this.allTransactions().length);
+  readonly showFirstRunGuide = computed(
+    () => !this.initialLoading() && this.transactionCount() === 0 && !this.onboarding.isDismissed()
+  );
 
   readonly importColumns = ['postedAt', 'merchant', 'amount', 'kind', 'status'];
   readonly importStep = signal<ImportStep>('upload');
@@ -1006,6 +1066,7 @@ export class TransactionsComponent implements OnInit {
     this.importReviewFilter.set('all');
     this.importReviewPage.set(0);
     this.importStatus.set(null);
+    this.importRisksAcknowledged.set(false);
     this.parsing.set(false);
     this.importing.set(false);
   }
@@ -1021,6 +1082,10 @@ export class TransactionsComponent implements OnInit {
   readonly importNewCount = computed(() => this.importPreview().filter((r) => !r.isDuplicate).length);
   readonly importDuplicateCount = computed(() =>
     this.importPreview().filter((r) => r.isDuplicate).length
+  );
+  readonly importRisksAcknowledged = signal(false);
+  readonly importRiskRows = computed(() =>
+    this.importPreview().filter((row) => !row.isDuplicate && this.isLikelyPaymentOrTransfer(row))
   );
 
   readonly importReviewFiltered = computed(() => {
@@ -1181,6 +1246,12 @@ export class TransactionsComponent implements OnInit {
       this.filterValues();
       this.listPage.set(0);
     });
+
+    effect(() => {
+      if (!this.initialLoading() && this.transactionCount() > 0) {
+        void this.onboarding.complete('activity');
+      }
+    });
   }
 
   prevListPage(): void {
@@ -1324,6 +1395,10 @@ export class TransactionsComponent implements OnInit {
 
   isInbox(tx: Transaction): boolean {
     return tx.kind === 'expense' && !tx.categoryId && !tx.split?.length;
+  }
+
+  async dismissFirstRunGuide(): Promise<void> {
+    await this.onboarding.dismiss();
   }
 
   showInbox(): void {
@@ -1541,6 +1616,7 @@ export class TransactionsComponent implements OnInit {
       this.importPreview.set(mapped);
       this.importReviewFilter.set('all');
       this.importReviewPage.set(0);
+      this.importRisksAcknowledged.set(false);
       this.importStep.set('review');
       this.importStatus.set(
         `Mapped ${mapped.length} of ${this.rawCsvRows().length} rows. Review before importing.`
@@ -1550,6 +1626,15 @@ export class TransactionsComponent implements OnInit {
     } finally {
       this.importing.set(false);
     }
+  }
+
+  isLikelyPaymentOrTransfer(row: ParsedImportRow): boolean {
+    return rowLooksLikePaymentOrTransfer(normalizeImportKindText(row.merchant, row.description));
+  }
+
+  setImportedKind(importHash: string, kind: Transaction['kind']): void {
+    this.importPreview.update((rows) => rows.map((row) => row.importHash === importHash ? { ...row, kind, categoryId: kind === 'expense' ? row.categoryId : null } : row));
+    this.importRisksAcknowledged.set(false);
   }
 
   async confirmImport(): Promise<void> {

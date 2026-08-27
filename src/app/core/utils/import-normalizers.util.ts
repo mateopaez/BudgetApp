@@ -35,17 +35,17 @@ export function resolveAmountFromRow(
   mapping: ImportColumnMapping,
   convention: AmountSignConvention
 ): number | null {
-  if (mapping.debit || mapping.credit) {
-    const debitRaw = mapping.debit ? row[mapping.debit] : '';
-    const creditRaw = mapping.credit ? row[mapping.credit] : '';
-    const debit = normalizeAmountRaw(debitRaw);
-    const credit = normalizeAmountRaw(creditRaw);
+  if (mapping.withdrawal || mapping.deposit) {
+    const withdrawalRaw = mapping.withdrawal ? row[mapping.withdrawal] : '';
+    const depositRaw = mapping.deposit ? row[mapping.deposit] : '';
+    const withdrawal = normalizeAmountRaw(withdrawalRaw);
+    const deposit = normalizeAmountRaw(depositRaw);
 
-    if (debit != null && Math.abs(debit) > 0) {
-      return -Math.abs(debit);
+    if (withdrawal != null && Math.abs(withdrawal) > 0) {
+      return -Math.abs(withdrawal);
     }
-    if (credit != null && Math.abs(credit) > 0) {
-      return Math.abs(credit);
+    if (deposit != null && Math.abs(deposit) > 0) {
+      return Math.abs(deposit);
     }
     return null;
   }

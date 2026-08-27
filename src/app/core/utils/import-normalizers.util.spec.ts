@@ -19,9 +19,9 @@ describe('import normalizers', () => {
     expect(applyAmountSignConvention(-10, 'negative_expense')).toBe(-10);
   });
 
-  it('resolves debit and credit columns', () => {
-    const row = { Debit: '15.00', Credit: '' };
-    const mapping = { ...EMPTY_IMPORT_MAPPING, debit: 'Debit', credit: 'Credit' };
+  it('resolves withdrawal and deposit columns', () => {
+    const row = { Withdrawal: '15.00', Deposit: '' };
+    const mapping = { ...EMPTY_IMPORT_MAPPING, withdrawal: 'Withdrawal', deposit: 'Deposit' };
     expect(resolveAmountFromRow(row, mapping, 'negative_expense')).toBe(-15);
   });
 

@@ -22,6 +22,7 @@ import { AccountService } from '../../core/services/account.service';
 import { BudgetService } from '../../core/services/budget.service';
 import { CategoryService } from '../../core/services/category.service';
 import { ScheduledItemService } from '../../core/services/scheduled-item.service';
+import { OnboardingService } from '../../core/services/onboarding.service';
 import { TransactionService } from '../../core/services/transaction.service';
 import { signedAmountForKind } from '../../core/utils/amount.util';
 import { roundMoney } from '../../core/utils/balance.util';
@@ -587,6 +588,7 @@ export class CalendarComponent {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly scheduledService = inject(ScheduledItemService);
+  private readonly onboarding = inject(OnboardingService);
   private readonly transactionService = inject(TransactionService);
   private readonly accountService = inject(AccountService);
   private readonly categoryService = inject(CategoryService);
@@ -1007,7 +1009,8 @@ export class CalendarComponent {
       !this.accounts().some((account) => account.id === accountId)
     ) {
       if (!this.accounts().length) {
-        this.cancelEdit();
+        if (!this.editingId()) await this.onboarding.complete('plan');
+      this.cancelEdit();
         const ref = this.snack.open(
           'This schedule needs an account. Add one, then try again.',
           'Go to Accounts',

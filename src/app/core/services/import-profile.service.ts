@@ -74,16 +74,23 @@ export class ImportProfileService {
     }
   }
 
-  /** Drop legacy fields (e.g. time) from saved mappings. */
+  /** Drop legacy fields (e.g. time, debit/credit) from saved mappings. */
   private sanitizeMapping(
-    mapping: (ImportColumnMapping & { time?: string | null }) | null | undefined
+    mapping:
+      | (ImportColumnMapping & {
+          time?: string | null;
+          debit?: string | null;
+          credit?: string | null;
+        })
+      | null
+      | undefined
   ): ImportColumnMapping {
     return {
       date: mapping?.date ?? null,
       merchant: mapping?.merchant ?? null,
       amount: mapping?.amount ?? null,
-      debit: mapping?.debit ?? null,
-      credit: mapping?.credit ?? null,
+      withdrawal: mapping?.withdrawal ?? mapping?.debit ?? null,
+      deposit: mapping?.deposit ?? mapping?.credit ?? null,
       type: mapping?.type ?? null,
       memo: mapping?.memo ?? null,
     };

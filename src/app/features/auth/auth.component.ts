@@ -208,20 +208,21 @@ export class AuthComponent {
     }
 
     const { email, password } = this.form.getRawValue();
-    const action =
-      this.mode() === 'signIn'
-        ? () => this.auth.signIn(email, password)
-        : () => this.auth.signUp(email, password);
+    const isNewAccount = this.mode() === 'signUp';
+    const action = isNewAccount
+      ? () => this.auth.signUp(email, password)
+      : () => this.auth.signIn(email, password);
 
-    await this.runAuth(action);
+    await this.runAuth(action, isNewAccount);
   }
 
-  private async runAuth(action: () => Promise<void>): Promise<void> {
+  private async runAuth(action: () => Promise<void>, isNewAccount = false): Promise<void> {
     this.loading.set(true);
     this.error.set(null);
     try {
       await action();
-      await this.router.navigate(['/dashboard']);
+      // New accounts start where value begins: adding or importing activity.
+      await this.router.navigate([isNewAccount ? '/transactions' : '/dashboard']);
     } catch (e: unknown) {
       this.error.set(friendlyAuthError(e));
     } finally {

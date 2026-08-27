@@ -1,6 +1,6 @@
 import { Injectable, NgZone, inject } from '@angular/core';
 import Papa from 'papaparse';
-import { Category, ParsedImportRow, TransactionKind } from '../models';
+import { Category, ParsedImportRow } from '../models';
 import {
   ImportPreviewLine,
   ImportProfileConfig,
@@ -8,6 +8,7 @@ import {
   RawCsvRow,
 } from '../models/import.model';
 import { mappingValidationError } from '../import/import-profiles';
+import { detectImportKind } from '../utils/import-kind-detection.util';
 import {
   normalizeImportDate,
   normalizeImportMerchant,
@@ -139,10 +140,12 @@ export class ImportService {
       const merchant = preview.merchant;
       const postedAt = preview.postedAt;
       const typeRaw = profile.mapping.type ? rows[i][profile.mapping.type] : null;
-      const { kind, categoryId } = this.detectKind(
+      const description = profile.mapping.memo ? rows[i][profile.mapping.memo]?.trim() || null : null;
+      const { kind, categoryId } = detectImportKind(
         amount,
-        typeRaw,
         merchant,
+        description,
+        typeRaw,
         profile.detectCcPayments,
         ccPaymentId
       );
@@ -221,30 +224,16 @@ export class ImportService {
     }
 
     const typeRaw = profile.mapping.type ? row[profile.mapping.type] : null;
-    const { kind } = this.detectKind(amount, typeRaw, merchant, profile.detectCcPayments, null);
+    const description = profile.mapping.memo ? row[profile.mapping.memo]?.trim() || null : null;
+    const { kind } = detectImportKind(
+      amount,
+      merchant,
+      description,
+      typeRaw,
+      profile.detectCcPayments,
+      null
+    );
 
     return { rowIndex, postedAt, merchant, amount, kind, error: null };
-  }
-
-  private detectKind(
-    amount: number,
-    typeRaw: string | null | undefined,
-    merchant: string,
-    detectCcPayments: boolean,
-    ccPaymentId: string | null
-  ): { kind: TransactionKind; categoryId: string | null } {
-    if (amount < 0) {
-      return { kind: 'expense', categoryId: null };
-    }
-
-    if (detectCcPayments) {
-      const type = (typeRaw ?? '').toUpperCase();
-      const merchantUpper = merchant.toUpperCase();
-      if (type === 'PAYMENT' || merchantUpper.includes('PAYMENT')) {
-        return { kind: 'cc_payment', categoryId: ccPaymentId };
-      }
-    }
-
-    return { kind: 'income', categoryId: null };
   }
 }

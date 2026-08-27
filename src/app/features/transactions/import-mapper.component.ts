@@ -292,8 +292,8 @@ export class ImportMapperComponent {
     { key: 'date', label: 'Date' },
     { key: 'merchant', label: 'Merchant or description' },
     { key: 'amount', label: 'Single amount column' },
-    { key: 'debit', label: 'Debit column' },
-    { key: 'credit', label: 'Credit column' },
+    { key: 'withdrawal', label: 'Withdrawal column' },
+    { key: 'deposit', label: 'Deposit column' },
   ];
 
   readonly optionalMappingFields: { key: keyof ImportColumnMapping; label: string }[] = [

@@ -13,6 +13,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { Router } from '@angular/router';
 import { BudgetPeriod, Category, CategoryBudget } from '../../core/models';
 import { BudgetService } from '../../core/services/budget.service';
+import { OnboardingService } from '../../core/services/onboarding.service';
 import { CategoryService } from '../../core/services/category.service';
 import { TransactionService } from '../../core/services/transaction.service';
 import { buildCategorySpendRows } from '../../core/utils/budget.util';
@@ -284,6 +285,7 @@ export class CategoriesComponent {
   private readonly fb = inject(FormBuilder);
   private readonly categoryService = inject(CategoryService);
   private readonly budgetService = inject(BudgetService);
+  private readonly onboarding = inject(OnboardingService);
   private readonly transactionService = inject(TransactionService);
   private readonly dialog = inject(MatDialog);
   private readonly currency = inject(CurrencyPipe);
@@ -468,6 +470,7 @@ export class CategoriesComponent {
     }
 
     this.cancelCategorySheet();
+    if (amount > 0) await this.onboarding.complete('budgets');
     this.snack.open(categoryId ? 'Category and budget updated.' : 'Category added.', 'Dismiss', {
       duration: 3000,
       panelClass: ['snackbar-success'],
