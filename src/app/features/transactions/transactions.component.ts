@@ -33,6 +33,7 @@ import {
   clearOneShotQueryParams,
   OneShotQueryParam,
 } from '../../core/utils/one-shot-query.util';
+import { signedAmountForKind } from '../../core/utils/amount.util';
 import {
   computeNetActivity,
   computeTransactionSummary,
@@ -47,6 +48,7 @@ import {
   TransactionFormResult,
 } from './transaction-form-dialog.component';
 import { ImportMapperComponent } from './import-mapper.component';
+import { TransactionReviewComponent } from './transaction-review.component';
 import { confirmDialog } from '../../shared/confirm-dialog/confirm-dialog.component';
 import { ModalSheetComponent } from '../../shared/modal-sheet/modal-sheet.component';
 import { toLoadableSignal } from '../../core/utils/loadable-signal.util';
@@ -84,31 +86,28 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
     MatCheckboxModule,
     ImportMapperComponent,
     ModalSheetComponent,
+    TransactionReviewComponent,
   ],
   template: `
-    <div class="flex flex-col gap-6">
-      <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div class="page !space-y-8">
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div class="page-header">
           <h1 class="page-title">Activity</h1>
           <p class="page-subtitle">
-            Review, categorize, and import money activity ·
-            {{ initialLoading() ? 'loading activity…' : transactions().length + ' shown · ' + dateRange().label }}
-            @if (inboxCount() > 0) {
-              ·
-              <button
-                type="button"
-                class="rounded-full bg-finance-warningSoft px-2 py-0.5 text-xs font-semibold text-finance-warning hover:bg-finance-warningSoft"
-                (click)="showInbox()"
-              >
-                Review {{ inboxCount() }} uncategorized
-              </button>
-            }
+            What happened — your transaction register for
+            {{ initialLoading() ? '…' : dateRange().label }}.
           </p>
         </div>
         <div class="flex shrink-0 flex-wrap gap-2 self-start">
+          @if (inboxCount() > 0) {
+            <button mat-stroked-button type="button" (click)="openReview()">
+              Review {{ inboxCount() }}
+            </button>
+          }
           <button
             mat-stroked-button
             class="!hidden sm:!inline-flex"
+            type="button"
             (click)="toggleImport()"
             [disabled]="initialLoading() || clearing() || importing()"
           >
@@ -116,19 +115,9 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
             Import CSV
           </button>
           <button
-            mat-stroked-button
-            color="warn"
-            type="button"
-            (click)="clearAllTransactions()"
-            [disabled]="initialLoading() || transactionCount() === 0 || clearing() || importing()"
-          >
-            <mat-icon>delete_sweep</mat-icon>
-            {{ clearing() ? 'Clearing…' : 'Clear all' }}
-          </button>
-          <button
             mat-flat-button
             color="primary"
-            class="!hidden sm:!inline-flex"
+            type="button"
             (click)="openAdd()"
             [disabled]="initialLoading() || clearing() || importing()"
           >
@@ -139,18 +128,32 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
       </div>
 
       @if (showFirstRunGuide()) {
-        <section class="first-run-guide" aria-labelledby="first-run-title">
-          <div>
-            <p class="eyebrow">Start here</p>
-            <h2 id="first-run-title">Bring in your first money movement.</h2>
-            <p>Import a bank file if you have one, or add a recent transaction. You can refine categories after.</p>
-          </div>
-          <div class="first-run-actions">
-            <button mat-flat-button color="primary" type="button" (click)="toggleImport()"><mat-icon>upload_file</mat-icon> Import a CSV</button>
-            <button mat-button type="button" (click)="openAdd()"><mat-icon>add</mat-icon> Add it manually</button>
-            <button mat-button type="button" class="guide-skip" (click)="dismissFirstRunGuide()">I’ll do this later</button>
+        <section class="empty-state space-y-4" aria-labelledby="first-run-title">
+          <h2 id="first-run-title" class="section-title">Bring in your first activity</h2>
+          <p class="mx-auto max-w-md text-sm leading-6 text-ink-muted">
+            Import a bank CSV if you have one, or add a recent transaction. Categories can wait.
+          </p>
+          <div class="flex flex-wrap items-center justify-center gap-2">
+            <button mat-flat-button color="primary" type="button" (click)="toggleImport()">
+              <mat-icon>upload_file</mat-icon>
+              Import CSV
+            </button>
+            <button mat-stroked-button type="button" (click)="openAdd()">
+              <mat-icon>add</mat-icon>
+              Add manually
+            </button>
+            <button mat-button type="button" (click)="dismissFirstRunGuide()">I’ll do this later</button>
           </div>
         </section>
+      }
+
+      @if (reviewOpen()) {
+        <app-transaction-review
+          [items]="reviewQueue()"
+          [accounts]="accounts()"
+          [categories]="categories()"
+          (closed)="closeReview()"
+        />
       }
 
       @if (initialLoading()) {
@@ -598,38 +601,42 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
         </div>
       </div>
 
-      <div class="flex flex-wrap gap-3">
-        <div class="rounded-xl border border-finance-expenseSoft bg-finance-expenseSoft px-4 py-3">
-          <p class="text-xs font-medium uppercase tracking-wide text-finance-expense">Expenses</p>
-          <p class="text-lg font-semibold text-finance-expense">{{ summary().expenses | currency }}</p>
+      <div class="flex flex-wrap gap-x-8 gap-y-3 border-y border-line py-4">
+        <div>
+          <p class="kicker text-finance-expense">Expenses</p>
+          <p class="money mt-1 text-lg font-semibold text-finance-expense">
+            {{ summary().expenses | currency }}
+          </p>
         </div>
-        <div class="rounded-xl border border-line bg-action-soft px-4 py-3">
-          <p class="text-xs font-medium uppercase tracking-wide text-action">Income</p>
-          <p class="text-lg font-semibold text-action">{{ summary().income | currency }}</p>
+        <div>
+          <p class="kicker text-action">Income</p>
+          <p class="money mt-1 text-lg font-semibold text-action">
+            {{ summary().income | currency }}
+          </p>
         </div>
-        <div class="rounded-xl border border-line bg-surface px-4 py-3">
-          <p class="text-xs font-medium uppercase tracking-wide text-ink-muted">Net (in range)</p>
+        <div>
+          <p class="kicker">Net (income − spending)</p>
           <p
-            class="text-lg font-semibold"
+            class="money mt-1 text-lg font-semibold"
             [class]="summary().net < 0 ? 'text-finance-expense' : summary().net > 0 ? 'text-action' : 'text-ink-muted'"
           >
             {{ summary().net | currency }}
           </p>
         </div>
         @if (selectedAccountBalance() !== null) {
-          <div class="rounded-xl border border-finance-incomeSoft bg-finance-incomeSoft px-4 py-3">
-            <p class="text-xs font-medium uppercase tracking-wide text-finance-income">Balance today</p>
+          <div>
+            <p class="kicker text-finance-income">Balance today</p>
             <p
-              class="text-lg font-semibold"
+              class="money mt-1 text-lg font-semibold"
               [class]="selectedAccountBalance()! < 0 ? 'text-finance-expense' : 'text-finance-income'"
             >
               {{ selectedAccountBalance()! | currency }}
             </p>
           </div>
-          <div class="rounded-xl border border-line bg-surface-muted px-4 py-3">
-            <p class="text-xs font-medium uppercase tracking-wide text-ink-muted">Activity in range</p>
+          <div>
+            <p class="kicker">Activity in range</p>
             <p
-              class="text-lg font-semibold"
+              class="money mt-1 text-lg font-semibold"
               [class]="filteredNetActivity() < 0 ? 'text-finance-expense' : filteredNetActivity() > 0 ? 'text-action' : 'text-ink-muted'"
             >
               {{ filteredNetActivity() | currency }}
@@ -639,7 +646,7 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
       </div>
 
       <div class="list-shell">
-        @if (transactions().length) {
+        @if (transactions().length > transactionListPageSize) {
           <div class="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
             <p class="text-sm text-slate-500" role="status" aria-live="polite">
               Showing {{ listRangeLabel() }} of {{ transactions().length }}
@@ -663,6 +670,11 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
               </button>
             </div>
           </div>
+        } @else if (transactions().length) {
+          <p class="border-b border-line px-4 py-2 text-sm text-ink-muted" role="status" aria-live="polite">
+            {{ transactions().length }}
+            {{ transactions().length === 1 ? 'transaction' : 'transactions' }}
+          </p>
         }
 
         @for (tx of pagedTransactions(); track tx.id) {
@@ -1044,6 +1056,7 @@ export class TransactionsComponent implements OnInit {
   readonly rawCsvRows = signal<RawCsvRow[]>([]);
   readonly importProfile = signal<ImportProfileConfig>(profileFromHeaders([]));
   readonly showImport = signal(false);
+  readonly reviewOpen = signal(false);
   readonly parsing = signal(false);
   readonly importing = signal(false);
   readonly clearing = signal(false);
@@ -1145,7 +1158,7 @@ export class TransactionsComponent implements OnInit {
   readonly filters = this.fb.group({
     search: this.fb.nonNullable.control(''),
     accountId: this.fb.nonNullable.control(''),
-    period: this.fb.nonNullable.control<DateRangePreset>('all'),
+    period: this.fb.nonNullable.control<DateRangePreset>('this_month'),
     from: this.fb.control<Date | null>(null),
     to: this.fb.control<Date | null>(null),
     kind: this.fb.nonNullable.control<KindFilter>('all'),
@@ -1165,7 +1178,7 @@ export class TransactionsComponent implements OnInit {
     return [
       !!(f.search ?? '').trim(),
       !!f.accountId,
-      f.period !== 'all',
+      f.period !== 'this_month',
       f.kind !== 'all',
       !!f.categoryId,
       !!f.hideCcPayments,
@@ -1266,6 +1279,18 @@ export class TransactionsComponent implements OnInit {
     countUncategorizedExpenses(this.allTransactions(), this.dateRange())
   );
 
+  readonly reviewQueue = computed(() => {
+    const range = this.dateRange();
+    return this.allTransactions().filter(
+      (tx) =>
+        tx.kind === 'expense' &&
+        !tx.categoryId &&
+        !tx.split?.length &&
+        (!range.start || tx.postedAt >= range.start) &&
+        (!range.end || tx.postedAt <= range.end)
+    );
+  });
+
   readonly summary = computed(() => computeTransactionSummary(this.transactions()));
 
   readonly selectedAccountBalance = computed(() => {
@@ -1282,7 +1307,7 @@ export class TransactionsComponent implements OnInit {
 
   ngOnInit(): void {
     const q = this.route.snapshot.queryParamMap;
-    const period = (q.get('period') as DateRangePreset | null) ?? 'all';
+    const period = (q.get('period') as DateRangePreset | null) ?? 'this_month';
     const kind = (q.get('kind') as KindFilter | null) ?? 'all';
 
     this.filters.patchValue(
@@ -1312,6 +1337,10 @@ export class TransactionsComponent implements OnInit {
         queueMicrotask(() => this.openAdd());
         handledOneShotParams.push('action');
       }
+      if (params.get('review') === '1') {
+        queueMicrotask(() => this.openReview());
+        handledOneShotParams.push('review');
+      }
       if (handledOneShotParams.length) {
         void clearOneShotQueryParams(this.router, this.route, handledOneShotParams);
       }
@@ -1334,7 +1363,7 @@ export class TransactionsComponent implements OnInit {
         queryParams: {
           search: v.search || null,
           accountId: v.accountId || null,
-          period: v.period === 'all' ? null : v.period,
+          period: v.period === 'this_month' ? null : v.period,
           from: v.period === 'custom' && v.from ? formatDateParam(v.from) : null,
           to: v.period === 'custom' && v.to ? formatDateParam(v.to) : null,
           kind: v.kind === 'all' ? null : v.kind,
@@ -1402,20 +1431,26 @@ export class TransactionsComponent implements OnInit {
   }
 
   showInbox(): void {
-    this.filters.patchValue({
-      categoryId: 'uncategorized',
-      kind: 'expense',
-    });
-    this.snack.open(`${this.transactions().length} uncategorized transaction results.`, 'Dismiss', {
-      duration: 2500,
-    });
+    this.openReview();
+  }
+
+  openReview(): void {
+    if (!this.reviewQueue().length) {
+      this.snack.open('Nothing needs review right now.', 'Dismiss', { duration: 2500 });
+      return;
+    }
+    this.reviewOpen.set(true);
+  }
+
+  closeReview(): void {
+    this.reviewOpen.set(false);
   }
 
   clearFilters(): void {
     this.filters.patchValue({
       search: '',
       accountId: '',
-      period: 'all',
+      period: 'this_month',
       from: null,
       to: null,
       kind: 'all',
@@ -1442,7 +1477,7 @@ export class TransactionsComponent implements OnInit {
     return !!(
       (f.search ?? '').trim() ||
       f.accountId ||
-      f.period !== 'all' ||
+      f.period !== 'this_month' ||
       f.from ||
       f.to ||
       f.kind !== 'all' ||
@@ -1456,6 +1491,7 @@ export class TransactionsComponent implements OnInit {
   emptyStateTitle(): string {
     if (!this.transactionCount()) return 'No transactions yet';
     if (this.filterValues().categoryId === 'uncategorized') return 'No transactions need review';
+    if (!this.hasActiveFilters()) return 'No activity this month yet';
     return 'No activity matches these filters';
   }
 
@@ -1465,6 +1501,9 @@ export class TransactionsComponent implements OnInit {
     }
     if (this.filterValues().categoryId === 'uncategorized') {
       return 'Everything in this view is categorized. Clear filters to return to all activity.';
+    }
+    if (!this.hasActiveFilters()) {
+      return 'Add a transaction, import a CSV, or widen the date range to see earlier activity.';
     }
     return 'Try clearing filters, widening the date range, or searching for a different merchant.';
   }
@@ -1697,13 +1736,51 @@ export class TransactionsComponent implements OnInit {
     });
     ref.afterClosed().subscribe((result: TransactionFormResult | undefined) => {
       if (!result) return;
-      void this.transactionService.create(result).then(() => {
-        this.snack.open('Transaction added.', 'Dismiss', {
-          duration: 2500,
-          panelClass: ['snackbar-success'],
-        });
-      });
+      void this.persistTransaction(result);
     });
+  }
+
+  private async persistTransaction(result: TransactionFormResult): Promise<void> {
+    try {
+      if (
+        result.counterpartyAccountId &&
+        (result.kind === 'transfer' || result.kind === 'cc_payment')
+      ) {
+        const abs = Math.abs(result.amount);
+        await this.transactionService.createLinkedPair(
+          {
+            accountId: result.accountId,
+            postedAt: result.postedAt,
+            merchant: result.merchant,
+            description: result.description,
+            amount: signedAmountForKind(abs, result.kind, 'from'),
+            kind: result.kind,
+            categoryId: null,
+          },
+          {
+            accountId: result.counterpartyAccountId,
+            postedAt: result.postedAt,
+            merchant: result.merchant,
+            description: result.description,
+            amount: signedAmountForKind(abs, result.kind, 'to'),
+            kind: result.kind,
+            categoryId: null,
+          }
+        );
+      } else {
+        await this.transactionService.create(result);
+      }
+      this.snack.open('Transaction added.', 'Dismiss', {
+        duration: 2500,
+        panelClass: ['snackbar-success'],
+      });
+    } catch (err) {
+      console.error(err);
+      this.snack.open('Could not save that transaction. Try again.', 'Dismiss', {
+        duration: 5000,
+        panelClass: ['snackbar-error'],
+      });
+    }
   }
 
   openEdit(tx: Transaction): void {

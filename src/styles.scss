@@ -4,39 +4,42 @@
 @tailwind utilities;
 
 :root {
-  --color-canvas: #f7f4ef;
+  --color-canvas: #f3f4f6;
   --color-surface: #ffffff;
-  --color-surface-raised: #fffcf7;
-  --color-surface-muted: #f1ede6;
-  --color-ink: #14211f;
-  --color-muted: #66736f;
-  --color-ink-soft: #8a9791;
-  --color-border: #ded8ce;
-  --color-primary: #0f766e;
-  --color-primary-hover: #115e59;
-  --color-primary-soft: #ccfbf1;
-  --color-income: #15803d;
-  --color-income-soft: #dcfce7;
-  --color-expense: #b42318;
-  --color-expense-soft: #fee4e2;
-  --color-saving: #0369a1;
-  --color-saving-soft: #e0f2fe;
-  --color-warning: #b45309;
-  --color-warning-soft: #fef3c7;
-  --space-page: clamp(1rem, 2vw, 1.5rem);
-  --radius-control: 0.875rem;
-  --radius-panel: 1.5rem;
-  --chart-grid: #ded8ce;
-  --chart-label: #66736f;
+  --color-surface-raised: #fafbfc;
+  --color-surface-muted: #ebedf0;
+  --color-ink: #14161c;
+  --color-muted: #5c6570;
+  --color-ink-soft: #8b939e;
+  --color-border: #d8dce2;
+  --color-primary: #1b4d3e;
+  --color-primary-hover: #143d31;
+  --color-primary-soft: #e4f0eb;
+  --color-income: #1b6b3a;
+  --color-income-soft: #e6f4ec;
+  --color-expense: #a32d2d;
+  --color-expense-soft: #f8e8e8;
+  --color-saving: #1e4d7b;
+  --color-saving-soft: #e5eef6;
+  --color-warning: #9a6700;
+  --color-warning-soft: #f7f0de;
+  --space-page: clamp(1rem, 2.5vw, 1.75rem);
+  --radius-control: 0.5rem;
+  --radius-panel: 0.75rem;
+  --font-display: 'Source Serif 4', Georgia, serif;
+  --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --content-max: 72rem;
+  --chart-grid: #d8dce2;
+  --chart-label: #5c6570;
   --chart-surface: #ffffff;
-  --chart-series-1: #0f766e;
-  --chart-series-2: #15803d;
-  --chart-series-3: #b45309;
-  --chart-series-4: #0369a1;
-  --chart-series-5: #b42318;
-  --chart-series-6: #66736f;
-  --chart-series-7: #115e59;
-  --chart-series-8: #8a5a28;
+  --chart-series-1: #1b4d3e;
+  --chart-series-2: #1b6b3a;
+  --chart-series-3: #9a6700;
+  --chart-series-4: #1e4d7b;
+  --chart-series-5: #a32d2d;
+  --chart-series-6: #5c6570;
+  --chart-series-7: #143d31;
+  --chart-series-8: #6b4f2a;
 }
 
 html {
@@ -44,38 +47,38 @@ html {
     (
       color: (
         theme-type: light,
-        primary: mat.$cyan-palette,
-        tertiary: mat.$green-palette,
+        primary: mat.$green-palette,
+        tertiary: mat.$blue-palette,
       ),
       typography: (
-        brand-family: 'Inter',
-        plain-family: 'Inter',
+        brand-family: 'Source Serif 4',
+        plain-family: 'IBM Plex Sans',
       ),
       density: -1,
     )
   );
   @include mat.theme-overrides(
     (
-      primary: #0f766e,
+      primary: #1b4d3e,
       on-primary: #ffffff,
-      primary-container: #ccfbf1,
-      on-primary-container: #14211f,
-      secondary: #0f766e,
+      primary-container: #e4f0eb,
+      on-primary-container: #14161c,
+      secondary: #1b4d3e,
       on-secondary: #ffffff,
-      secondary-container: #ccfbf1,
-      on-secondary-container: #14211f,
-      tertiary: #0369a1,
-      error: #b42318,
+      secondary-container: #e4f0eb,
+      on-secondary-container: #14161c,
+      tertiary: #1e4d7b,
+      error: #a32d2d,
       on-error: #ffffff,
-      error-container: #fee4e2,
-      on-error-container: #7a271a,
+      error-container: #f8e8e8,
+      on-error-container: #6f1e1e,
       surface: #ffffff,
-      surface-container: #f7f4ef,
-      surface-container-high: #f1ede6,
-      on-surface: #14211f,
-      on-surface-variant: #66736f,
-      outline: #8a9791,
-      outline-variant: #ded8ce,
+      surface-container: #f3f4f6,
+      surface-container-high: #ebedf0,
+      on-surface: #14161c,
+      on-surface-variant: #5c6570,
+      outline: #8b939e,
+      outline-variant: #d8dce2,
     )
   );
 }
@@ -84,13 +87,11 @@ html,
 body {
   height: 100%;
   margin: 0;
-  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--font-sans);
 }
 
 body {
-  background:
-    radial-gradient(circle at top left, rgb(204 251 241 / 0.52), transparent 34rem),
-    var(--color-canvas);
+  background: var(--color-canvas);
   color: var(--color-ink);
 }
 
@@ -99,12 +100,12 @@ body.modal-sheet-open {
 }
 
 .modal-sheet-panel {
-  border-radius: 1.5rem 1.5rem 0 0;
+  border-radius: var(--radius-panel) var(--radius-panel) 0 0;
 }
 
 @media (min-width: 640px) {
   .modal-sheet-panel {
-    border-radius: 1.5rem;
+    border-radius: var(--radius-panel);
   }
 }
 
@@ -148,11 +149,11 @@ body.modal-sheet-open {
 }
 
 ::selection {
-  background: rgb(15 118 110 / 0.18);
+  background: rgb(27 77 62 / 0.16);
 }
 
 :focus-visible {
-  outline: 3px solid rgb(15 118 110 / 0.35);
+  outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
 
@@ -169,24 +170,25 @@ body.modal-sheet-open {
 
 @layer components {
   .page {
-    @apply mx-auto w-full max-w-7xl space-y-6;
+    @apply mx-auto w-full max-w-content space-y-8;
   }
 
   main.app-main-content {
-    padding-bottom: calc(10.5rem + env(safe-area-inset-bottom));
+    padding-bottom: calc(7.5rem + env(safe-area-inset-bottom));
   }
 
   .app-bottom-nav {
-    bottom: calc(0.75rem + env(safe-area-inset-bottom));
+    bottom: 0;
+    padding-bottom: env(safe-area-inset-bottom);
   }
 
   .app-quick-add-fab {
-    bottom: calc(6rem + env(safe-area-inset-bottom));
+    bottom: calc(5.25rem + env(safe-area-inset-bottom));
   }
 
   .app-toolbar {
-    height: calc(4rem + env(safe-area-inset-top)) !important;
-    min-height: calc(4rem + env(safe-area-inset-top));
+    height: calc(3.5rem + env(safe-area-inset-top)) !important;
+    min-height: calc(3.5rem + env(safe-area-inset-top));
     padding-top: env(safe-area-inset-top);
   }
 
@@ -222,15 +224,9 @@ body.modal-sheet-open {
     padding-bottom: env(safe-area-inset-bottom);
   }
 
-  @media (min-width: 640px) {
-    main.app-main-content {
-      padding-bottom: calc(7.5rem + env(safe-area-inset-bottom));
-    }
-  }
-
   @media (min-width: 1024px) {
     main.app-main-content {
-      padding-bottom: 2rem;
+      padding-bottom: 2.5rem;
     }
 
     .app-drawer-content {
@@ -240,48 +236,62 @@ body.modal-sheet-open {
   }
 
   .page-header {
-    @apply space-y-1;
+    @apply max-w-2xl space-y-2;
+  }
+
+  .page-kicker {
+    @apply text-xs font-medium uppercase tracking-[0.14em] text-ink-soft;
   }
 
   .page-title {
-    @apply text-2xl font-bold tracking-[-0.03em] text-ink sm:text-3xl;
+    font-family: var(--font-display);
+    @apply text-[1.75rem] font-semibold leading-tight tracking-[-0.02em] text-ink sm:text-[2rem];
   }
 
   .page-subtitle {
-    @apply text-sm leading-5 text-ink-muted;
+    @apply text-[0.9375rem] leading-6 text-ink-muted;
+  }
+
+  .section-title {
+    font-family: var(--font-display);
+    @apply text-lg font-semibold tracking-[-0.015em] text-ink;
   }
 
   .kicker {
-    @apply text-xs font-semibold uppercase tracking-[0.12em] text-ink-muted;
+    @apply text-xs font-medium uppercase tracking-[0.12em] text-ink-soft;
   }
 
-  .panel,
+  .panel {
+    @apply rounded-panel border border-line bg-surface;
+  }
+
   .app-card {
-    @apply rounded-panel border border-line bg-surface shadow-panel;
+    @apply rounded-panel border border-line bg-surface;
   }
 
   .metric {
-    @apply rounded-2xl border border-line bg-surface px-4 py-3;
+    @apply border-b border-line py-3 last:border-b-0 sm:border-b-0 sm:border-r sm:px-5 sm:py-0 sm:last:border-r-0;
   }
 
   .list-shell {
-    @apply overflow-hidden rounded-2xl border border-line bg-surface;
+    @apply overflow-hidden rounded-panel border border-line bg-surface;
   }
 
   .list-row {
-    @apply border-b border-line px-4 py-3 last:border-b-0;
+    @apply border-b border-line px-4 py-3.5 last:border-b-0;
   }
 
   .app-list-row {
-    @apply rounded-2xl border border-line bg-surface p-4 shadow-panel transition-[border-color,box-shadow,transform] hover:border-action/40 hover:shadow-floating;
+    @apply border-b border-line bg-surface px-4 py-3.5 transition-colors last:border-b-0 hover:bg-surface-muted/60;
   }
 
   .money {
     font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
   }
 
   .amount-xl {
-    @apply money text-4xl font-semibold tracking-[-0.055em] text-ink sm:text-5xl;
+    @apply money text-3xl font-semibold tracking-[-0.03em] text-ink sm:text-4xl;
   }
 
   .amount-lg {
@@ -290,6 +300,62 @@ body.modal-sheet-open {
 
   .soft-divider {
     @apply border-line;
+  }
+
+  .status-banner {
+    @apply rounded-control border px-4 py-3 text-sm leading-6;
+  }
+
+  .status-banner--warning {
+    @apply border-finance-warning/25 bg-finance-warningSoft text-ink;
+  }
+
+  .status-banner--error {
+    @apply border-finance-expense/25 bg-finance-expenseSoft text-finance-expense;
+  }
+
+  .status-banner--success {
+    @apply border-action/20 bg-action-soft text-ink;
+  }
+
+  .status-banner--info {
+    @apply border-line bg-surface-muted text-ink-muted;
+  }
+
+  .progress-track {
+    @apply h-1.5 w-full overflow-hidden rounded-full bg-surface-muted;
+  }
+
+  .progress-fill {
+    @apply h-full rounded-full bg-action transition-[width] duration-300;
+  }
+
+  .progress-fill--warn {
+    @apply bg-finance-warning;
+  }
+
+  .progress-fill--over {
+    @apply bg-finance-expense;
+  }
+
+  .empty-state {
+    @apply rounded-panel border border-dashed border-line bg-surface px-6 py-10 text-center;
+  }
+
+  .tx-amount--out {
+    @apply text-ink;
+  }
+
+  .tx-amount--in {
+    @apply text-finance-income;
+  }
+
+  .nav-link {
+    @apply flex min-h-11 items-center gap-3 rounded-control px-3 text-sm font-medium text-ink-muted no-underline transition-colors hover:bg-surface-muted hover:text-ink;
+  }
+
+  .nav-link.active-nav {
+    @apply bg-action-soft text-ink;
   }
 }
 
@@ -346,9 +412,9 @@ body.modal-sheet-open {
 }
 
 .mat-mdc-card {
-  border-radius: 1.5rem !important;
+  border-radius: var(--radius-panel) !important;
   border: 1px solid var(--color-border) !important;
-  box-shadow: 0 8px 30px rgb(20 33 31 / 0.06) !important;
+  box-shadow: none !important;
 }
 
 .mat-mdc-card-header {
@@ -360,10 +426,9 @@ body.modal-sheet-open {
 }
 
 .mat-toolbar {
-  background: rgb(255 255 255 / 0.88) !important;
+  background: var(--color-surface) !important;
   color: var(--color-ink) !important;
   border-bottom: 1px solid var(--color-border);
-  backdrop-filter: blur(16px);
 }
 
 .mat-toolbar .mat-icon {
@@ -394,7 +459,7 @@ body.modal-sheet-open {
 .mat-mdc-snack-bar-container {
   --mdc-snackbar-container-color: var(--color-ink);
   --mdc-snackbar-supporting-text-color: #ffffff;
-  --mat-snack-bar-button-color: #99f6e4;
+  --mat-snack-bar-button-color: #c5ddd4;
 }
 
 .mat-mdc-snack-bar-container.snackbar-success {
@@ -412,15 +477,15 @@ body.modal-sheet-open {
 }
 
 .mat-mdc-header-row {
-  background-color: rgb(204 251 241 / 0.24) !important;
+  background-color: var(--color-surface-muted) !important;
 }
 
 .mat-mdc-header-cell {
   color: var(--color-muted) !important;
-  font-weight: 700 !important;
+  font-weight: 600 !important;
   font-size: 0.75rem !important;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
 }
 
 .mat-drawer {
@@ -437,7 +502,7 @@ body.modal-sheet-open {
   --mdc-list-list-item-hover-label-text-color: var(--color-ink);
   --mdc-list-list-item-focus-label-text-color: var(--color-ink);
   --mdc-list-list-item-leading-icon-color: var(--color-muted);
-  border-radius: 0.875rem;
+  border-radius: var(--radius-control);
   margin: 0 0.75rem;
   width: calc(100% - 1.5rem) !important;
 }
@@ -446,14 +511,14 @@ body.modal-sheet-open {
 .mat-drawer a.mat-mdc-list-item.active-nav:visited,
 .mat-drawer a.mat-mdc-list-item.active-nav:hover,
 .mat-drawer a.mat-mdc-list-item.active-nav:focus-visible {
-  background-color: rgb(204 251 241 / 0.8) !important;
+  background-color: var(--color-primary-soft) !important;
   color: var(--color-ink);
   --mdc-list-list-item-label-text-color: var(--color-ink);
   --mdc-list-list-item-leading-icon-color: var(--color-primary);
 }
 
 .mat-drawer a.mat-mdc-list-item:hover:not(.active-nav) {
-  background-color: rgb(20 33 31 / 0.04) !important;
+  background-color: rgb(20 22 28 / 0.04) !important;
   color: var(--color-ink);
 }
 
@@ -463,4 +528,11 @@ body.modal-sheet-open {
 
 .mat-mdc-icon-button {
   flex-shrink: 0;
+}
+
+.mat-mdc-raised-button.mat-primary,
+.mat-mdc-unelevated-button.mat-primary,
+.mat-mdc-flat-button.mat-primary {
+  --mdc-filled-button-container-color: var(--color-primary);
+  --mdc-filled-button-label-text-color: #ffffff;
 }

@@ -1,6 +1,6 @@
 import { ActivatedRoute, Router } from '@angular/router';
 
-export type OneShotQueryParam = 'action' | 'import';
+export type OneShotQueryParam = 'action' | 'import' | 'review';
 
 export function oneShotQueryCleanup(
   keys: readonly OneShotQueryParam[]

@@ -102,10 +102,9 @@ export function sortTransactions(list: Transaction[], sort: SortOption): Transac
 export function computeTransactionSummary(transactions: Transaction[]): TransactionSummary {
   let expenses = 0;
   let income = 0;
-  let net = 0;
 
   for (const tx of transactions) {
-    net += tx.amount;
+    // Transfers and CC payments never count as income or spending.
     if (tx.kind === 'expense') {
       expenses += Math.abs(tx.amount);
     } else if (tx.kind === 'income') {
@@ -113,10 +112,14 @@ export function computeTransactionSummary(transactions: Transaction[]): Transact
     }
   }
 
+  const expensesRounded = roundMoney(expenses);
+  const incomeRounded = roundMoney(income);
+
   return {
-    expenses: roundMoney(expenses),
-    income: roundMoney(income),
-    net: roundMoney(net),
+    expenses: expensesRounded,
+    income: incomeRounded,
+    // Net = income − spending only (excludes transfers and card payments).
+    net: roundMoney(incomeRounded - expensesRounded),
   };
 }
 

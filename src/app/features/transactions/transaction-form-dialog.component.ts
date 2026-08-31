@@ -1,10 +1,12 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, computed, inject, OnInit } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { startWith } from 'rxjs/operators';
 import { Account, Category, Transaction, TransactionKind } from '../../core/models';
 import {
   absoluteAmountForForm,
@@ -22,6 +24,8 @@ export interface TransactionFormDialogData {
 
 export interface TransactionFormResult {
   accountId: string;
+  /** Destination / credit card for dual-leg transfer or CC payment (add mode). */
+  counterpartyAccountId?: string | null;
   postedAt: Date;
   merchant: string;
   description: string | null;
@@ -47,12 +51,12 @@ export interface TransactionFormResult {
     </h2>
 
     <mat-dialog-content>
-      <p class="mb-5 text-sm leading-6 text-slate-600">
+      <p class="mb-5 text-sm leading-6 text-ink-muted">
         {{ dialogCopy() }}
       </p>
 
       <form [formGroup]="form" class="space-y-5" novalidate>
-        <section class="rounded-2xl border border-line bg-action-soft/40 p-4">
+        <section class="rounded-panel border border-line bg-action-soft/40 p-4">
           <p class="kicker">Money movement</p>
           <div class="mt-3 grid gap-3 sm:grid-cols-[1fr_1.1fr]">
             <mat-form-field appearance="outline">
@@ -104,18 +108,52 @@ export interface TransactionFormResult {
             }
           </mat-form-field>
 
-          <mat-form-field appearance="outline">
-            <mat-label>Account</mat-label>
-            <mat-select formControlName="accountId">
-              @for (a of data.accounts; track a.id) {
-                <mat-option [value]="a.id">{{ a.name }} ({{ accountLabel(a.type) }})</mat-option>
+          @if (needsCounterparty()) {
+            <div class="grid gap-3 sm:grid-cols-2">
+              <mat-form-field appearance="outline">
+                <mat-label>{{ fromAccountLabel() }}</mat-label>
+                <mat-select formControlName="accountId">
+                  @for (a of fromAccounts(); track a.id) {
+                    <mat-option [value]="a.id">{{ a.name }} ({{ accountLabel(a.type) }})</mat-option>
+                  }
+                </mat-select>
+                @if (form.controls.accountId.hasError('required') && form.controls.accountId.touched) {
+                  <mat-error>Choose an account.</mat-error>
+                }
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>{{ toAccountLabel() }}</mat-label>
+                <mat-select formControlName="counterpartyAccountId">
+                  @for (a of toAccounts(); track a.id) {
+                    <mat-option [value]="a.id">{{ a.name }} ({{ accountLabel(a.type) }})</mat-option>
+                  }
+                </mat-select>
+                @if (
+                  form.controls.counterpartyAccountId.hasError('required') &&
+                  form.controls.counterpartyAccountId.touched
+                ) {
+                  <mat-error>Choose a destination.</mat-error>
+                }
+              </mat-form-field>
+            </div>
+            <p class="text-sm text-ink-muted">
+              Both accounts update. This does not count as spending or income.
+            </p>
+          } @else {
+            <mat-form-field appearance="outline">
+              <mat-label>Account</mat-label>
+              <mat-select formControlName="accountId">
+                @for (a of data.accounts; track a.id) {
+                  <mat-option [value]="a.id">{{ a.name }} ({{ accountLabel(a.type) }})</mat-option>
+                }
+              </mat-select>
+              <mat-hint>The account whose balance should change.</mat-hint>
+              @if (form.controls.accountId.hasError('required') && form.controls.accountId.touched) {
+                <mat-error>Choose an account.</mat-error>
               }
-            </mat-select>
-            <mat-hint>The account whose balance should change.</mat-hint>
-            @if (form.controls.accountId.hasError('required') && form.controls.accountId.touched) {
-              <mat-error>Choose an account.</mat-error>
-            }
-          </mat-form-field>
+            </mat-form-field>
+          }
 
           @if (showCategory()) {
             <mat-form-field appearance="outline">
@@ -164,6 +202,7 @@ export class TransactionFormDialogComponent implements OnInit {
 
   readonly form = this.fb.nonNullable.group({
     accountId: ['', Validators.required],
+    counterpartyAccountId: ['' as string],
     date: [formatDateParam(new Date()), Validators.required],
     merchant: ['', Validators.required],
     description: [''],
@@ -171,6 +210,13 @@ export class TransactionFormDialogComponent implements OnInit {
     amount: [null as number | null, [Validators.required, Validators.min(0.01)]],
     categoryId: [null as string | null],
   });
+
+  private readonly formValues = toSignal(
+    this.form.valueChanges.pipe(startWith(this.form.getRawValue())),
+    { initialValue: this.form.getRawValue() }
+  );
+
+  readonly kind = computed(() => this.formValues().kind ?? 'expense');
 
   ngOnInit(): void {
     if (this.data.mode === 'edit' && this.data.transaction) {
@@ -190,48 +236,127 @@ export class TransactionFormDialogComponent implements OnInit {
       if (defaultAccount) {
         this.form.patchValue({ accountId: defaultAccount.id });
       }
+      const defaultCard = this.data.accounts.find((a) => a.type === 'credit_card');
+      if (defaultCard) {
+        this.form.patchValue({ counterpartyAccountId: defaultCard.id });
+      }
     }
 
     this.form.controls.kind.valueChanges.subscribe((kind) => {
       if (kind !== 'expense' && kind !== 'income') {
         this.form.patchValue({ categoryId: null }, { emitEvent: false });
       }
+      this.syncCounterpartyValidators(kind);
+      if (kind === 'cc_payment' || kind === 'transfer') {
+        this.ensureDualAccountDefaults(kind);
+      }
     });
+
+    this.syncCounterpartyValidators(this.form.controls.kind.value);
+  }
+
+  private syncCounterpartyValidators(kind: TransactionKind): void {
+    const ctrl = this.form.controls.counterpartyAccountId;
+    if (this.data.mode === 'add' && (kind === 'transfer' || kind === 'cc_payment')) {
+      ctrl.setValidators([Validators.required]);
+    } else {
+      ctrl.clearValidators();
+      ctrl.setValue('', { emitEvent: false });
+    }
+    ctrl.updateValueAndValidity({ emitEvent: false });
+  }
+
+  private ensureDualAccountDefaults(kind: TransactionKind): void {
+    const cash =
+      this.data.accounts.find((a) => a.type === 'checking') ??
+      this.data.accounts.find((a) => a.type === 'savings');
+    const card = this.data.accounts.find((a) => a.type === 'credit_card');
+
+    if (kind === 'cc_payment') {
+      if (cash && !this.form.controls.accountId.value) {
+        this.form.patchValue({ accountId: cash.id }, { emitEvent: false });
+      }
+      if (card) {
+        this.form.patchValue({ counterpartyAccountId: card.id }, { emitEvent: false });
+      }
+    } else if (kind === 'transfer') {
+      const from = this.form.controls.accountId.value || cash?.id || '';
+      this.form.patchValue({ accountId: from }, { emitEvent: false });
+      const to =
+        this.data.accounts.find((a) => a.id !== from && a.type !== 'credit_card') ??
+        this.data.accounts.find((a) => a.id !== from);
+      if (to) {
+        this.form.patchValue({ counterpartyAccountId: to.id }, { emitEvent: false });
+      }
+    }
+  }
+
+  needsCounterparty(): boolean {
+    return (
+      this.data.mode === 'add' &&
+      (this.kind() === 'transfer' || this.kind() === 'cc_payment')
+    );
+  }
+
+  fromAccountLabel(): string {
+    return this.kind() === 'cc_payment' ? 'Pay from' : 'From account';
+  }
+
+  toAccountLabel(): string {
+    return this.kind() === 'cc_payment' ? 'Credit card' : 'To account';
+  }
+
+  fromAccounts(): Account[] {
+    if (this.kind() === 'cc_payment') {
+      return this.data.accounts.filter((a) => a.type === 'checking' || a.type === 'savings');
+    }
+    const toId = this.formValues().counterpartyAccountId;
+    return this.data.accounts.filter((a) => a.id !== toId);
+  }
+
+  toAccounts(): Account[] {
+    if (this.kind() === 'cc_payment') {
+      return this.data.accounts.filter((a) => a.type === 'credit_card');
+    }
+    const fromId = this.formValues().accountId;
+    return this.data.accounts.filter((a) => a.id !== fromId);
   }
 
   dialogCopy(): string {
     if (this.data.mode === 'edit') {
-      return 'Keep the amount positive here. BudgetApp applies the correct sign based on transaction kind.';
+      return 'Keep the amount positive here. Ledger applies the correct sign based on transaction kind.';
     }
     return 'Record one money movement. Use imports for bulk activity and splits for purchases that belong to multiple categories.';
   }
 
   amountHint(): string {
-    return amountHintForKind(this.form.controls.kind.value ?? 'expense');
+    const kind = this.kind();
+    const leg = this.needsCounterparty() ? 'from' : 'single';
+    return amountHintForKind(kind, leg);
   }
 
   kindExplanation(): string {
-    switch (this.form.controls.kind.value) {
+    switch (this.kind()) {
       case 'expense':
         return 'Money out. Saved as a negative amount.';
       case 'income':
         return 'Money in. Saved as a positive amount.';
       case 'transfer':
-        return 'Movement between accounts. Category is not used.';
+        return 'Moves money between two accounts. Not counted as spending or income.';
       case 'cc_payment':
-        return 'Payment toward a credit card. Can be hidden from spending reports.';
+        return 'Pays a card from cash. Not counted as spending or income.';
       default:
         return '';
     }
   }
 
   showCategory(): boolean {
-    const kind = this.form.controls.kind.value;
+    const kind = this.kind();
     return kind === 'expense' || kind === 'income';
   }
 
   selectableCategories(): Category[] {
-    const kind = this.form.controls.kind.value;
+    const kind = this.kind();
     if (kind === 'income' || kind === 'expense') {
       return this.data.categories.filter((c) => !c.isSystem);
     }
@@ -255,14 +380,27 @@ export class TransactionFormDialogComponent implements OnInit {
       return;
     }
     const v = this.form.getRawValue();
+    if (
+      this.needsCounterparty() &&
+      (!v.counterpartyAccountId || v.counterpartyAccountId === v.accountId)
+    ) {
+      this.form.controls.counterpartyAccountId.setErrors({ required: true });
+      this.form.controls.counterpartyAccountId.markAsTouched();
+      return;
+    }
+
     const postedAt = parseDateParam(v.date) ?? startOfDay(new Date());
     const description = v.description.trim() || null;
+    const abs = Number(v.amount);
+    const leg = this.needsCounterparty() ? 'from' : 'single';
+
     this.dialogRef.close({
       accountId: v.accountId,
+      counterpartyAccountId: this.needsCounterparty() ? v.counterpartyAccountId : null,
       postedAt,
       merchant: v.merchant.trim(),
       description,
-      amount: signedAmountForKind(Number(v.amount), v.kind),
+      amount: signedAmountForKind(abs, v.kind, leg),
       kind: v.kind,
       categoryId: this.showCategory() ? v.categoryId : null,
     } satisfies TransactionFormResult);

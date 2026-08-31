@@ -1,6 +1,9 @@
 export type AccountType = 'checking' | 'savings' | 'credit_card';
 export type TransactionKind = 'expense' | 'income' | 'transfer' | 'cc_payment';
 
+/** Everyday budget grouping for Budgets UI. Optional on existing docs. */
+export type CategoryGroup = 'essentials' | 'lifestyle' | 'debt' | 'other';
+
 export interface Account {
   id: string;
   name: string;
@@ -16,6 +19,11 @@ export interface Category {
   name: string;
   isSystem: boolean;
   systemKey?: 'cc_payment';
+  /** Optional; inferred from name when missing for backwards compatibility. */
+  group?: CategoryGroup;
+  /** Optional display order within a group. */
+  sortOrder?: number;
+  archivedAt?: Date | null;
   createdAt: Date;
 }
 
@@ -49,6 +57,11 @@ export interface Transaction {
   importHash?: string;
   /** Links a posted transaction back to a scheduled bill/paycheck. */
   scheduledItemId?: string | null;
+  /**
+   * Optional link to the paired leg of a transfer or CC payment.
+   * Existing single-leg rows remain valid without this field.
+   */
+  linkedTransactionId?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -85,6 +98,39 @@ export const DEFAULT_CATEGORIES = [
   'Fees/Interest',
   'Other',
 ] as const;
+
+/** Seed metadata for default categories (name → group). */
+export const DEFAULT_CATEGORY_GROUPS: Record<(typeof DEFAULT_CATEGORIES)[number], CategoryGroup> = {
+  Groceries: 'essentials',
+  Dining: 'lifestyle',
+  Transport: 'essentials',
+  Shopping: 'lifestyle',
+  Entertainment: 'lifestyle',
+  Utilities: 'essentials',
+  'Rent/Mortgage': 'essentials',
+  Insurance: 'essentials',
+  Health: 'essentials',
+  Travel: 'lifestyle',
+  Subscriptions: 'lifestyle',
+  Education: 'other',
+  'Gifts/Donations': 'other',
+  'Fees/Interest': 'debt',
+  Other: 'other',
+};
+
+export const CATEGORY_GROUP_LABELS: Record<CategoryGroup, string> = {
+  essentials: 'Essentials',
+  lifestyle: 'Lifestyle',
+  debt: 'Debt & obligations',
+  other: 'Other',
+};
+
+export const CATEGORY_GROUP_ORDER: CategoryGroup[] = [
+  'essentials',
+  'lifestyle',
+  'debt',
+  'other',
+];
 
 export const SYSTEM_CATEGORIES = [
   { name: 'Credit Card Payment', systemKey: 'cc_payment' as const },

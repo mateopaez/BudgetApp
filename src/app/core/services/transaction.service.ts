@@ -35,6 +35,7 @@ export interface TransactionInput {
   split?: SplitLine[];
   importHash?: string;
   scheduledItemId?: string | null;
+  linkedTransactionId?: string | null;
 }
 
 export interface TransactionFilters {
@@ -128,6 +129,7 @@ export class TransactionService {
       split: data['split'] as SplitLine[] | undefined,
       importHash: data['importHash'] as string | undefined,
       scheduledItemId: (data['scheduledItemId'] as string | null | undefined) ?? null,
+      linkedTransactionId: (data['linkedTransactionId'] as string | null | undefined) ?? null,
       createdAt: toDate(data['createdAt']),
       updatedAt: toDate(data['updatedAt']),
     };
@@ -139,6 +141,33 @@ export class TransactionService {
     const ref = collection(this.firestore, `users/${uid}/transactions`);
     const docRef = await addDoc(ref, this.toFirestorePayload(input));
     return docRef.id;
+  }
+
+  /**
+   * Creates a dual-leg transfer or CC payment and links both docs.
+   * `from` is the cash/source outflow; `to` is the destination/card inflow.
+   */
+  async createLinkedPair(
+    from: TransactionInput,
+    to: TransactionInput
+  ): Promise<{ fromId: string; toId: string }> {
+    const uid = this.auth.uid();
+    if (!uid) throw new Error('Not authenticated');
+
+    const ref = collection(this.firestore, `users/${uid}/transactions`);
+    const fromRef = doc(ref);
+    const toRef = doc(ref);
+    const batch = writeBatch(this.firestore);
+
+    batch.set(fromRef, {
+      ...this.toFirestorePayload({ ...from, linkedTransactionId: toRef.id }),
+    });
+    batch.set(toRef, {
+      ...this.toFirestorePayload({ ...to, linkedTransactionId: fromRef.id }),
+    });
+    await batch.commit();
+
+    return { fromId: fromRef.id, toId: toRef.id };
   }
 
   private toFirestorePayload(input: TransactionInput) {
@@ -154,6 +183,7 @@ export class TransactionService {
       ...(input.split ? { split: input.split } : {}),
       ...(input.importHash ? { importHash: input.importHash } : {}),
       ...(input.scheduledItemId ? { scheduledItemId: input.scheduledItemId } : {}),
+      ...(input.linkedTransactionId ? { linkedTransactionId: input.linkedTransactionId } : {}),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     };
@@ -223,6 +253,9 @@ export class TransactionService {
     if (patch.split !== undefined) data['split'] = patch.split;
     if (patch.importHash !== undefined) data['importHash'] = patch.importHash;
     if (patch.scheduledItemId !== undefined) data['scheduledItemId'] = patch.scheduledItemId;
+    if (patch.linkedTransactionId !== undefined) {
+      data['linkedTransactionId'] = patch.linkedTransactionId;
+    }
 
     await updateDoc(doc(this.firestore, `users/${uid}/transactions/${id}`), data);
   }

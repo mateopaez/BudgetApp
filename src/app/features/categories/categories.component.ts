@@ -497,6 +497,6 @@ export class CategoriesComponent {
       'Review Activity',
       { duration: 8000 }
     );
-    ref.onAction().subscribe(() => void this.router.navigate(['/transactions']));
+    ref.onAction().subscribe(() => void this.router.navigate(['/activity']));
   }
 }

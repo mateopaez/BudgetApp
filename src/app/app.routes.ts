@@ -2,7 +2,7 @@ import { Routes } from '@angular/router';
 import { authGuard, guestGuard } from './core/guards/auth.guard';
 
 export const routes: Routes = [
-  { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
+  { path: '', redirectTo: 'home', pathMatch: 'full' },
   {
     path: 'auth',
     canActivate: [guestGuard],
@@ -14,36 +14,40 @@ export const routes: Routes = [
     loadComponent: () => import('./layout/shell/shell.component').then((m) => m.ShellComponent),
     children: [
       {
-        path: 'dashboard',
-        loadComponent: () =>
-          import('./features/dashboard/dashboard.component').then((m) => m.DashboardComponent),
+        path: 'home',
+        loadComponent: () => import('./features/home/home.component').then((m) => m.HomeComponent),
       },
-      { path: 'home', redirectTo: 'dashboard', pathMatch: 'full' },
-      { path: 'overview', redirectTo: 'calendar', pathMatch: 'full' },
-      { path: 'plan', redirectTo: 'calendar', pathMatch: 'full' },
-      { path: 'activity', redirectTo: 'transactions', pathMatch: 'full' },
-      { path: 'budgets', redirectTo: 'categories', pathMatch: 'full' },
       {
-        path: 'calendar',
+        path: 'activity',
         loadComponent: () =>
-          import('./features/calendar/calendar.component').then((m) => m.CalendarComponent),
+          import('./features/transactions/transactions.component').then((m) => m.TransactionsComponent),
+      },
+      {
+        path: 'plan',
+        loadComponent: () => import('./features/plan/plan.component').then((m) => m.PlanComponent),
+      },
+      {
+        path: 'budgets',
+        loadComponent: () =>
+          import('./features/budgets/budgets.component').then((m) => m.BudgetsComponent),
       },
       {
         path: 'accounts',
         loadComponent: () =>
           import('./features/accounts/accounts.component').then((m) => m.AccountsComponent),
       },
-      { path: 'import', redirectTo: 'transactions', pathMatch: 'full' },
       {
-        path: 'transactions',
+        path: 'insights',
         loadComponent: () =>
-          import('./features/transactions/transactions.component').then((m) => m.TransactionsComponent),
+          import('./features/insights/insights.component').then((m) => m.InsightsComponent),
       },
-      {
-        path: 'categories',
-        loadComponent: () =>
-          import('./features/categories/categories.component').then((m) => m.CategoriesComponent),
-      },
+      // Legacy redirects
+      { path: 'dashboard', redirectTo: 'home', pathMatch: 'full' },
+      { path: 'transactions', redirectTo: 'activity', pathMatch: 'full' },
+      { path: 'calendar', redirectTo: 'plan', pathMatch: 'full' },
+      { path: 'categories', redirectTo: 'budgets', pathMatch: 'full' },
+      { path: 'overview', redirectTo: 'plan', pathMatch: 'full' },
+      { path: 'import', redirectTo: 'activity', pathMatch: 'full' },
       {
         path: 'todos',
         loadComponent: () =>
@@ -51,5 +55,5 @@ export const routes: Routes = [
       },
     ],
   },
-  { path: '**', redirectTo: 'dashboard' },
+  { path: '**', redirectTo: 'home' },
 ];

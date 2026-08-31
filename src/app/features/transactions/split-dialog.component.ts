@@ -53,7 +53,7 @@ export interface SplitDialogData {
           </div>
         </div>
         <p class="mt-3 text-xs leading-5 text-ink-muted">
-          Enter positive amounts. BudgetApp saves the split with the correct expense sign.
+          Enter positive amounts. Ledger saves the split with the correct expense sign.
         </p>
       </div>
 

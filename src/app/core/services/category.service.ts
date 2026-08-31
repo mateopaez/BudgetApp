@@ -15,7 +15,13 @@ import {
   writeBatch,
 } from '@angular/fire/firestore';
 import { Observable } from 'rxjs';
-import { Category, DEFAULT_CATEGORIES, SYSTEM_CATEGORIES } from '../models';
+import {
+  Category,
+  CategoryGroup,
+  DEFAULT_CATEGORIES,
+  DEFAULT_CATEGORY_GROUPS,
+  SYSTEM_CATEGORIES,
+} from '../models';
 import { toDate } from '../utils/firestore.util';
 import { AuthService } from './auth.service';
 
@@ -40,9 +46,12 @@ export class CategoryService {
             const data = d.data();
             return {
               id: d.id,
-              name: data['name'],
+              name: data['name'] as string,
               isSystem: !!data['isSystem'],
-              systemKey: data['systemKey'],
+              systemKey: data['systemKey'] as Category['systemKey'],
+              group: data['group'] as CategoryGroup | undefined,
+              sortOrder: data['sortOrder'] as number | undefined,
+              archivedAt: data['archivedAt'] ? toDate(data['archivedAt']) : null,
               createdAt: toDate(data['createdAt']),
             } satisfies Category;
           });
@@ -61,8 +70,15 @@ export class CategoryService {
     const existing = await getDocs(ref);
     if (!existing.empty) return;
 
+    let sortOrder = 0;
     for (const name of DEFAULT_CATEGORIES) {
-      await addDoc(ref, { name, isSystem: false, createdAt: serverTimestamp() });
+      await addDoc(ref, {
+        name,
+        isSystem: false,
+        group: DEFAULT_CATEGORY_GROUPS[name],
+        sortOrder: sortOrder++,
+        createdAt: serverTimestamp(),
+      });
     }
     for (const sys of SYSTEM_CATEGORIES) {
       await addDoc(ref, {
@@ -74,18 +90,46 @@ export class CategoryService {
     }
   }
 
-  async create(name: string): Promise<string> {
+  async create(
+    name: string,
+    options: { group?: CategoryGroup; sortOrder?: number } = {}
+  ): Promise<string> {
     const uid = this.auth.uid();
     if (!uid) throw new Error('Not authenticated');
     const ref = collection(this.firestore, `users/${uid}/categories`);
-    const docRef = await addDoc(ref, { name, isSystem: false, createdAt: serverTimestamp() });
+    const docRef = await addDoc(ref, {
+      name,
+      isSystem: false,
+      group: options.group ?? 'other',
+      ...(options.sortOrder != null ? { sortOrder: options.sortOrder } : {}),
+      createdAt: serverTimestamp(),
+    });
     return docRef.id;
   }
 
-  async update(id: string, name: string): Promise<void> {
+  async update(
+    id: string,
+    patch: string | { name?: string; group?: CategoryGroup; sortOrder?: number }
+  ): Promise<void> {
     const uid = this.auth.uid();
     if (!uid) throw new Error('Not authenticated');
-    await updateDoc(doc(this.firestore, `users/${uid}/categories/${id}`), { name });
+    const data =
+      typeof patch === 'string'
+        ? { name: patch }
+        : {
+            ...(patch.name !== undefined ? { name: patch.name } : {}),
+            ...(patch.group !== undefined ? { group: patch.group } : {}),
+            ...(patch.sortOrder !== undefined ? { sortOrder: patch.sortOrder } : {}),
+          };
+    await updateDoc(doc(this.firestore, `users/${uid}/categories/${id}`), data);
+  }
+
+  async archive(id: string): Promise<void> {
+    const uid = this.auth.uid();
+    if (!uid) throw new Error('Not authenticated');
+    await updateDoc(doc(this.firestore, `users/${uid}/categories/${id}`), {
+      archivedAt: serverTimestamp(),
+    });
   }
 
   async remove(id: string): Promise<void> {

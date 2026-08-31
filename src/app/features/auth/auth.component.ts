@@ -46,12 +46,12 @@ export function friendlyAuthError(error: unknown): string {
     <div class="flex min-h-screen items-center justify-center bg-canvas px-4 py-10 text-ink sm:px-6">
       <div class="w-full max-w-md">
         <div class="mb-8 text-center sm:text-left">
-          <p class="text-sm font-semibold tracking-[0.08em] uppercase text-ink-soft">BudgetApp</p>
-          <h1 class="mt-2 text-3xl font-bold tracking-[-0.04em] text-ink sm:text-4xl">
+          <p class="page-kicker">Ledger</p>
+          <h1 class="page-title mt-2 !text-3xl sm:!text-4xl">
             {{ mode() === 'signIn' ? 'Sign in' : 'Create account' }}
           </h1>
-          <p class="mt-2 text-sm leading-6 text-ink-muted">
-            Accounts, transactions, budgets, and what is due next — in one place.
+          <p class="page-subtitle mt-2">
+            A calm personal ledger for spending, budgets, and what’s coming up.
           </p>
         </div>
 
@@ -222,7 +222,7 @@ export class AuthComponent {
     try {
       await action();
       // New accounts start where value begins: adding or importing activity.
-      await this.router.navigate([isNewAccount ? '/transactions' : '/dashboard']);
+      await this.router.navigate([isNewAccount ? '/activity' : '/home']);
     } catch (e: unknown) {
       this.error.set(friendlyAuthError(e));
     } finally {
