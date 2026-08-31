@@ -14,6 +14,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { startWith } from 'rxjs/operators';
 import { Account, AccountType, DEFAULT_ACCOUNTS } from '../../core/models';
 import { AccountService } from '../../core/services/account.service';
+import { DemoDataService } from '../../core/services/demo-data.service';
 import { TransactionService } from '../../core/services/transaction.service';
 import {
   creditCardOpeningBalanceForForm,
@@ -59,10 +60,23 @@ import { ModalSheetComponent } from '../../shared/modal-sheet/modal-sheet.compon
           <p class="page-subtitle">Balance sheet, account context, and net-worth history</p>
         </div>
         @if (!accountSheetOpen()) {
-          <button mat-flat-button color="primary" type="button" class="!hidden sm:!inline-flex" (click)="startAdd()">
-            <mat-icon>add</mat-icon>
-            Add account
-          </button>
+          <div class="flex flex-wrap gap-2">
+            @if (canLoadSampleData()) {
+              <button
+                mat-stroked-button
+                type="button"
+                [disabled]="seedingDemo()"
+                (click)="loadSampleData()"
+              >
+                <mat-icon>auto_awesome</mat-icon>
+                {{ seedingDemo() ? 'Loading…' : 'Load sample data' }}
+              </button>
+            }
+            <button mat-flat-button color="primary" type="button" class="!hidden sm:!inline-flex" (click)="startAdd()">
+              <mat-icon>add</mat-icon>
+              Add account
+            </button>
+          </div>
         }
       </div>
 
@@ -389,6 +403,7 @@ import { ModalSheetComponent } from '../../shared/modal-sheet/modal-sheet.compon
 export class AccountsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly accountService = inject(AccountService);
+  private readonly demoDataService = inject(DemoDataService);
   private readonly transactionService = inject(TransactionService);
   private readonly dialog = inject(MatDialog);
   private readonly route = inject(ActivatedRoute);
@@ -396,6 +411,7 @@ export class AccountsComponent {
   private readonly snack = inject(MatSnackBar);
 
   readonly showAccountForm = signal(false);
+  readonly seedingDemo = signal(false);
   readonly accountSheetOpen = computed(() => this.showAccountForm() || !!this.editingId());
   private readonly accountState = toLoadableSignal(
     this.accountService.watchAccounts(),
@@ -438,6 +454,11 @@ export class AccountsComponent {
       )
     );
   });
+
+  /** Sample data is only offered when there is no existing activity to overwrite. */
+  readonly canLoadSampleData = computed(
+    () => !this.initialLoading() && this.transactions().length === 0
+  );
 
   readonly comparisonRows = computed(() =>
     buildAccountComparisonRows(this.accounts(), this.transactions())
@@ -622,6 +643,45 @@ export class AccountsComponent {
       )
     ).find((account): account is Account => !!account);
     if (firstDefault) this.edit(firstDefault);
+  }
+
+  async loadSampleData(): Promise<void> {
+    if (this.seedingDemo() || !this.canLoadSampleData()) return;
+    const confirmed = await confirmDialog(this.dialog, {
+      title: 'Load sample data?',
+      message:
+        'Adds about 3 months of categorized and uncategorized transactions, a monthly paycheck, and rent on your starter accounts.',
+      detail:
+        'Opening balances are set to realistic demo values. Only available when you have no transactions yet.',
+      confirmLabel: 'Load sample data',
+    });
+    if (!confirmed) return;
+
+    this.seedingDemo.set(true);
+    try {
+      const result = await this.demoDataService.seedIfEmpty();
+      if (result.ok) {
+        this.snack.open(
+          `Loaded ${result.transactionCount} sample transactions.`,
+          'Dismiss',
+          { duration: 5000, panelClass: ['snackbar-success'] }
+        );
+      } else if (result.reason === 'already_has_transactions') {
+        this.snack.open('You already have transactions — sample data was skipped.', 'Dismiss', {
+          duration: 4000,
+        });
+      } else {
+        this.snack.open('Could not load sample data. Try again after signing in.', 'Dismiss', {
+          duration: 4000,
+        });
+      }
+    } catch {
+      this.snack.open('Sample data failed to load. Check your connection and try again.', 'Dismiss', {
+        duration: 5000,
+      });
+    } finally {
+      this.seedingDemo.set(false);
+    }
   }
 
   async remove(id: string): Promise<void> {
