@@ -163,7 +163,7 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
         </section>
       }
       @if (loadError()) {
-        <p class="rounded-2xl border border-finance-expense/20 bg-finance-expenseSoft p-4 text-sm text-finance-expense" role="alert">{{ loadError() }}</p>
+        <p class="rounded-2xl border border-finance-expenseA20 bg-finance-expenseSoft p-4 text-sm text-finance-expense" role="alert">{{ loadError() }}</p>
       }
       <div class="contents" [class.hidden]="initialLoading()">
       @if (clearing()) {
@@ -191,7 +191,7 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
             <div class="flex items-start justify-between gap-3">
               <div>
                 <p class="font-semibold text-ink">Import transactions</p>
-                <p class="mt-1 max-w-2xl text-sm text-slate-500">
+                <p class="mt-1 max-w-2xl text-sm text-ink-muted">
                   Upload a CSV, verify the column mapping, then review duplicates before anything is saved.
                 </p>
               </div>
@@ -221,7 +221,7 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
 
             @if (parsing() || importing()) {
               <div
-                class="rounded-2xl border border-action/30 bg-action-soft p-5"
+                class="rounded-2xl border border-action-a30 bg-action-soft p-5"
                 role="status"
                 aria-live="polite"
               >
@@ -236,12 +236,12 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
                         Preparing review…
                       }
                     </p>
-                    <p class="mt-1 text-sm text-slate-600">{{ importProgress().message }}</p>
+                    <p class="mt-1 text-sm text-ink-muted">{{ importProgress().message }}</p>
                   </div>
                   <span class="text-sm font-semibold text-action">{{ importProgress().progress }}%</span>
                 </div>
                 <mat-progress-bar mode="determinate" [value]="importProgress().progress" aria-label="Import progress" [attr.aria-valuetext]="importProgress().message" />
-                <p class="mt-3 text-xs text-slate-500">
+                <p class="mt-3 text-xs text-ink-muted">
                   Keep this tab open until the import finishes.
                 </p>
               </div>
@@ -261,7 +261,7 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
                 </div>
               </div>
 
-              <form [formGroup]="importForm" class="rounded-2xl border border-line bg-white p-4">
+              <form [formGroup]="importForm" class="rounded-2xl border border-line bg-surface p-4">
                 <mat-form-field>
                   <mat-label>Import into account</mat-label>
                   <mat-select formControlName="accountId" (selectionChange)="onImportAccountChange()">
@@ -275,7 +275,7 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
 
               @if (importStep() === 'upload') {
                 <label
-                  class="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-line bg-action-soft/60 p-8 text-center transition-colors hover:border-action hover:bg-action-soft"
+                  class="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-line bg-action-soft60 p-8 text-center transition-colors hover:border-action hover:bg-action-soft"
                   [class.pointer-events-none]="importForm.invalid"
                   [class.opacity-60]="importForm.invalid"
                 >
@@ -283,7 +283,7 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
                   <span class="font-semibold text-ink">
                     {{ importForm.invalid ? 'Choose an account first' : 'Upload CSV file' }}
                   </span>
-                  <span class="mt-1 max-w-sm text-sm text-slate-500">
+                  <span class="mt-1 max-w-sm text-sm text-ink-muted">
                     CSV files are parsed in your browser. Only confirmed transactions are saved.
                   </span>
                   <input
@@ -318,12 +318,12 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
                   </div>
                 }
                 @if (importStatus()) {
-                  <p class="text-sm text-slate-600">{{ importStatus() }}</p>
+                  <p class="text-sm text-ink-muted">{{ importStatus() }}</p>
                 }
               }
 
               @if (importStep() === 'review' && importPreview().length) {
-                <div class="space-y-4 rounded-2xl border border-line bg-white p-4">
+                <div class="space-y-4 rounded-2xl border border-line bg-surface p-4">
                   <div class="grid gap-3 sm:grid-cols-3">
                     <div class="metric">
                       <p class="kicker">Rows reviewed</p>
@@ -362,13 +362,13 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
                     >
                       Import {{ importNewCount() }} new transactions
                     </button>
-                    <p class="text-sm text-slate-500" role="status" aria-live="polite">
+                    <p class="text-sm text-ink-muted" role="status" aria-live="polite">
                       {{ importDuplicateCount() }} duplicates will be skipped automatically.
                     </p>
                   </div>
                 </div>
 
-                <div class="space-y-3 rounded-2xl border border-line bg-white p-4">
+                <div class="space-y-3 rounded-2xl border border-line bg-surface p-4">
                   <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div class="flex flex-wrap gap-2">
                       <button
@@ -396,7 +396,7 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
                         Duplicates ({{ importDuplicateCount() }})
                       </button>
                     </div>
-                    <p class="text-sm text-slate-500">
+                    <p class="text-sm text-ink-muted">
                       Showing {{ importReviewRangeLabel() }} of {{ importReviewFiltered().length }}
                     </p>
                   </div>
@@ -460,7 +460,7 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
                   </div>
 
                   <div class="flex flex-wrap items-center justify-between gap-3">
-                    <p class="text-sm text-slate-500">
+                    <p class="text-sm text-ink-muted">
                       Page {{ importReviewPage() + 1 }} of {{ importReviewPageCount() }}
                     </p>
                     <div class="flex gap-2">
@@ -509,7 +509,7 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
           <mat-icon>tune</mat-icon>
           Filters
           @if (activeFilterCount() > 0) {
-            <span class="rounded-full bg-action px-2 py-0.5 text-xs text-white">{{ activeFilterCount() }}</span>
+            <span class="rounded-full bg-action px-2 py-0.5 text-xs text-surface">{{ activeFilterCount() }}</span>
           }
         </button>
         <p class="min-w-0 truncate text-sm text-ink-muted">{{ filterSummary() }}</p>
@@ -648,7 +648,7 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
       <div class="list-shell">
         @if (transactions().length > transactionListPageSize) {
           <div class="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
-            <p class="text-sm text-slate-500" role="status" aria-live="polite">
+            <p class="text-sm text-ink-muted" role="status" aria-live="polite">
               Showing {{ listRangeLabel() }} of {{ transactions().length }}
             </p>
             <div class="flex gap-2">
@@ -679,7 +679,7 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
 
         @for (tx of pagedTransactions(); track tx.id) {
           <div
-            class="list-row transition-colors hover:bg-action-soft/30"
+            class="list-row transition-colors hover:bg-action-soft30"
             [class.bg-finance-warningSoft]="isInbox(tx)"
           >
             <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_15rem_7rem_auto] lg:items-center">
@@ -728,7 +728,7 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
                       {{ tx.postedAt | date: 'mediumDate' }} · {{ accountName(tx.accountId) }} · {{ kindLabel(tx) }}
                     </p>
                     @if (tx.description) {
-                      <p class="mt-0.5 truncate text-sm text-slate-500">{{ tx.description }}</p>
+                      <p class="mt-0.5 truncate text-sm text-ink-muted">{{ tx.description }}</p>
                     }
                     @if (tx.split?.length) {
                       <p class="mt-1 text-xs font-medium text-action">Split across {{ tx.split!.length }} categories</p>
@@ -852,7 +852,7 @@ const TRANSACTION_LIST_PAGE_SIZE = 25;
 
         @if (transactions().length > transactionListPageSize) {
           <div class="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3">
-            <p class="text-sm text-slate-500">
+            <p class="text-sm text-ink-muted">
               Page {{ listPage() + 1 }} of {{ listPageCount() }}
             </p>
             <div class="flex gap-2">
@@ -1385,7 +1385,7 @@ export class TransactionsComponent implements OnInit {
     const current = order.indexOf(this.importStep());
     const target = order.indexOf(step);
     if (target < current) return 'border-action bg-action-soft text-action';
-    if (target === current) return 'border-action bg-white text-action shadow-panel';
+    if (target === current) return 'border-action bg-surface text-action shadow-panel';
     return 'border-line bg-surface text-ink-muted';
   }
 

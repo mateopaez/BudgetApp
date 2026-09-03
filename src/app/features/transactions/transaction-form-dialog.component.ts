@@ -56,7 +56,7 @@ export interface TransactionFormResult {
       </p>
 
       <form [formGroup]="form" class="space-y-5" novalidate>
-        <section class="rounded-panel border border-line bg-action-soft/40 p-4">
+        <section class="rounded-panel border border-line bg-action-soft40 p-4">
           <p class="kicker">Money movement</p>
           <div class="mt-3 grid gap-3 sm:grid-cols-[1fr_1.1fr]">
             <mat-form-field appearance="outline">

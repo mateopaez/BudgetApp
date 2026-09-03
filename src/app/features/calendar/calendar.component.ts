@@ -97,7 +97,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
         </section>
       }
       @if (loadError()) {
-        <p class="rounded-2xl border border-finance-expense/20 bg-finance-expenseSoft p-4 text-sm text-finance-expense" role="alert">{{ loadError() }}</p>
+        <p class="rounded-2xl border border-finance-expenseA20 bg-finance-expenseSoft p-4 text-sm text-finance-expense" role="alert">{{ loadError() }}</p>
       }
       <div class="contents" [class.hidden]="initialLoading()">
       <section class="panel">
@@ -174,7 +174,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
         <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             <div
-              class="inline-flex overflow-hidden rounded-lg border border-line bg-white shadow-sm"
+              class="inline-flex overflow-hidden rounded-lg border border-line bg-surface shadow-panel"
               role="group"
               aria-label="Plan view"
             >
@@ -182,8 +182,8 @@ const WEEK_DAY_VISIBLE_CAP = 5;
                 type="button"
                 class="min-h-11 px-4 py-2 text-sm font-semibold transition-colors"
                 [class.bg-action]="viewMode() === 'month'"
-                [class.text-white]="viewMode() === 'month'"
-                [class.bg-white]="viewMode() !== 'month'"
+                [class.text-surface]="viewMode() === 'month'"
+                [class.bg-surface]="viewMode() !== 'month'"
                 [class.text-ink-muted]="viewMode() !== 'month'"
                 (click)="setView('month')"
               >
@@ -193,8 +193,8 @@ const WEEK_DAY_VISIBLE_CAP = 5;
                 type="button"
                 class="min-h-11 border-l border-line px-4 py-2 text-sm font-semibold transition-colors"
                 [class.bg-action]="viewMode() === 'week'"
-                [class.text-white]="viewMode() === 'week'"
-                [class.bg-white]="viewMode() !== 'week'"
+                [class.text-surface]="viewMode() === 'week'"
+                [class.bg-surface]="viewMode() !== 'week'"
                 [class.text-ink-muted]="viewMode() !== 'week'"
                 (click)="setView('week')"
               >
@@ -262,7 +262,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
           <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
             @for (day of weekCells(); track dayKey(day)) {
               <div
-                class="flex max-h-80 min-h-[12rem] flex-col rounded-xl border border-line bg-white p-3 shadow-sm transition-shadow"
+                class="flex max-h-80 min-h-[12rem] flex-col rounded-xl border border-line bg-surface p-3 shadow-panel transition-shadow"
                 [class]="weekDayColumnClass(day)"
               >
                 <button
@@ -412,7 +412,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
 
           <mat-card class="app-card">
             <mat-card-content>
-              <p class="mb-3 rounded-xl border border-line bg-action-soft/40 px-3 py-2 text-sm text-ink-muted">
+              <p class="mb-3 rounded-xl border border-line bg-action-soft40 px-3 py-2 text-sm text-ink-muted">
                 Saving an active schedule posts its next occurrence to Activity with the due date.
                 A posted (fulfilled) occurrence replaces the planned one so it is not counted twice.
                 Deleting the schedule does not remove transactions already posted.
@@ -488,7 +488,7 @@ const WEEK_DAY_VISIBLE_CAP = 5;
             </div>
           </section>
 
-          <section class="rounded-2xl border border-line bg-action-soft/40 p-4">
+          <section class="rounded-2xl border border-line bg-action-soft40 p-4">
             <p class="kicker">Schedule</p>
             <div class="mt-3 space-y-3">
               <mat-form-field appearance="outline">
@@ -703,7 +703,7 @@ export class CalendarComponent {
         start: occs[0].date,
         end: occs[0].date,
         isAllDay: true,
-        color: net >= 0 ? '#dcfce7' : '#fee2e2',
+        color: net >= 0 ? '#e6f4ec' : '#f8e8e8',
         data: { type: 'day-summary', dateKey, count } satisfies DaySummaryData,
       };
     });
@@ -909,7 +909,7 @@ export class CalendarComponent {
   weekDayColumnClass(day: Date): string {
     const parts: string[] = [];
     if (this.isSelected(day)) {
-      parts.push('ring-2 ring-action/60 border-action');
+      parts.push('ring-2 ring-action-a60 border-action');
     }
     if (this.isToday(day)) {
       parts.push('bg-action-soft');

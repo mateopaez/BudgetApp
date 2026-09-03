@@ -33,19 +33,19 @@ import { ImportService } from '../../core/services/import.service';
   ],
   template: `
     <div class="space-y-5">
-      <div class="rounded-2xl border border-line bg-white p-4">
+      <div class="rounded-2xl border border-line bg-surface p-4">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p class="font-semibold text-ink">Map your CSV columns</p>
-            <p class="mt-1 text-sm text-slate-500">
+            <p class="mt-1 text-sm text-ink-muted">
               Confirm the required fields first. Optional fields improve descriptions and payment detection.
             </p>
           </div>
-          <div class="rounded-xl border px-3 py-2" [class]="mappingError() ? 'border-red-100 bg-red-50' : previewErrorCount() ? 'border-amber-100 bg-amber-50' : 'border-emerald-100 bg-emerald-50'">
-            <p class="text-xs font-semibold uppercase tracking-wide" [class]="mappingError() ? 'text-red-700' : previewErrorCount() ? 'text-amber-700' : 'text-emerald-700'">
+          <div class="rounded-xl border px-3 py-2" [class]="mappingError() ? 'border-finance-expenseSoft bg-finance-expenseSoft' : previewErrorCount() ? 'border-finance-warningSoft bg-finance-warningSoft' : 'border-finance-incomeSoft bg-finance-incomeSoft'">
+            <p class="text-xs font-semibold uppercase tracking-wide" [class]="mappingError() ? 'text-finance-expense' : previewErrorCount() ? 'text-finance-warning' : 'text-finance-income'">
               Mapping check
             </p>
-            <p class="text-sm font-semibold" [class]="mappingError() ? 'text-red-700' : previewErrorCount() ? 'text-amber-700' : 'text-emerald-700'">
+            <p class="text-sm font-semibold" [class]="mappingError() ? 'text-finance-expense' : previewErrorCount() ? 'text-finance-warning' : 'text-finance-income'">
               @if (mappingError()) {
                 Needs setup
               } @else if (previewErrorCount()) {
@@ -130,14 +130,14 @@ import { ImportService } from '../../core/services/import.service';
       </div>
 
       @if (mappingError()) {
-        <p class="text-sm font-medium text-red-600">{{ mappingError() }}</p>
+        <p class="text-sm font-medium text-finance-expense">{{ mappingError() }}</p>
       }
 
       <div>
         <div class="mb-2 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p class="text-sm font-semibold text-ink">Preview first 5 rows</p>
-            <p class="text-xs text-slate-500">
+            <p class="text-xs text-ink-muted">
               {{ previewOkCount() }} look ready · {{ previewErrorCount() }} need attention
             </p>
           </div>
@@ -146,8 +146,8 @@ import { ImportService } from '../../core/services/import.service';
           @for (row of previewLines(); track row.rowIndex) {
             <div
               class="rounded-2xl border bg-surface p-4"
-              [class.border-red-200]="!!row.error"
-              [class.bg-red-50]="!!row.error"
+              [class.border-finance-expenseA20]="!!row.error"
+              [class.bg-finance-expenseSoft]="!!row.error"
               [class.border-line]="!row.error"
             >
               <div class="flex items-start justify-between gap-3">
@@ -163,7 +163,7 @@ import { ImportService } from '../../core/services/import.service';
                     · {{ row.kind || 'No kind yet' }}
                   </p>
                 </div>
-                <p class="money shrink-0 font-semibold" [class]="row.amount == null ? 'text-ink-muted' : row.amount < 0 ? 'text-red-600' : 'text-action'">
+                <p class="money shrink-0 font-semibold" [class]="row.amount == null ? 'text-ink-muted' : row.amount < 0 ? 'text-finance-expense' : 'text-action'">
                   @if (row.amount != null) {
                     {{ row.amount | currency }}
                   } @else {
@@ -173,7 +173,7 @@ import { ImportService } from '../../core/services/import.service';
               </div>
               <p
                 class="mt-3 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
-                [class]="row.error ? 'bg-red-100 text-red-700' : 'bg-action-soft text-action'"
+                [class]="row.error ? 'bg-finance-expenseSoft text-finance-expense' : 'bg-action-soft text-action'"
               >
                 {{ row.error || 'Ready' }}
               </p>
@@ -219,7 +219,7 @@ import { ImportService } from '../../core/services/import.service';
               <th mat-header-cell *matHeaderCellDef>Status</th>
               <td mat-cell *matCellDef="let row">
                 @if (row.error) {
-                  <span class="font-medium text-red-600">{{ row.error }}</span>
+                  <span class="font-medium text-finance-expense">{{ row.error }}</span>
                 } @else {
                   <span class="font-medium text-action">Ready</span>
                 }
@@ -229,7 +229,7 @@ import { ImportService } from '../../core/services/import.service';
             <tr
               mat-row
               *matRowDef="let row; columns: previewColumns"
-              [class.bg-red-50]="!!row.error"
+              [class.bg-finance-expenseSoft]="!!row.error"
             ></tr>
           </table>
         </div>

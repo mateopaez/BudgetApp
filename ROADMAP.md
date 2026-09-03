@@ -337,4 +337,4 @@ Actionable breakdown of project ideas, grounded in the current codebase (Angular
 
 ---
 
-*Last updated: June 2026 · Source ideas: `/todos` page (`project-ideas.ts`)*
+*Last updated: June 2026*

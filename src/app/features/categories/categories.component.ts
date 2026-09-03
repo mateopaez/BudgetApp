@@ -75,10 +75,10 @@ interface TrackedCategoryBudgetRow extends CategoryBudgetRow {
         </section>
       }
       @if (loadError()) {
-        <p class="rounded-2xl border border-finance-expense/20 bg-finance-expenseSoft p-4 text-sm text-finance-expense" role="alert">{{ loadError() }}</p>
+        <p class="rounded-2xl border border-finance-expenseA20 bg-finance-expenseSoft p-4 text-sm text-finance-expense" role="alert">{{ loadError() }}</p>
       }
       <div class="contents" [class.hidden]="initialLoading()">
-      <section class="flex items-center gap-3 rounded-2xl border border-line bg-action-soft/50 px-4 py-3" aria-label="Budget month">
+      <section class="flex items-center gap-3 rounded-2xl border border-line bg-action-soft50 px-4 py-3" aria-label="Budget month">
         <mat-icon class="text-action" aria-hidden="true">calendar_month</mat-icon>
         <div>
           <p class="font-semibold text-ink">{{ currentMonth() | date: 'MMMM yyyy' }}</p>
@@ -179,7 +179,7 @@ interface TrackedCategoryBudgetRow extends CategoryBudgetRow {
               </ul>
             </section>
           } @else {
-            <section class="rounded-2xl border border-dashed border-action/40 bg-action-soft/40 p-5 text-center">
+            <section class="rounded-2xl border border-dashed border-action-a40 bg-action-soft40 p-5 text-center">
               <mat-icon class="!h-9 !w-9 !text-4xl text-action" aria-hidden="true">track_changes</mat-icon>
               <h3 class="mt-2 font-semibold text-ink">Set your first budget target</h3>
               <p class="mx-auto mt-1 max-w-md text-sm text-ink-muted">
@@ -247,7 +247,7 @@ interface TrackedCategoryBudgetRow extends CategoryBudgetRow {
             </mat-form-field>
           </section>
 
-          <section class="rounded-2xl border border-line bg-action-soft/40 p-4">
+          <section class="rounded-2xl border border-line bg-action-soft40 p-4">
             <p class="kicker">Budget</p>
             <div class="mt-3 grid gap-3 sm:grid-cols-2">
               <mat-form-field appearance="outline">

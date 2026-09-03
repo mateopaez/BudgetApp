@@ -64,9 +64,9 @@ export class ChartCardComponent implements AfterViewInit, OnDestroy {
 
   private buildConfig(): ChartConfiguration<'line'> {
     const canvas = this.canvasRef().nativeElement;
-    const color = chartCssColor(canvas, this.color(), '#0F766E');
-    const gridColor = chartCssVariable(canvas, '--chart-grid', '#DED8CE');
-    const labelColor = chartCssVariable(canvas, '--chart-label', '#66736F');
+    const color = chartCssColor(canvas, this.color(), '#1B4D3E');
+    const gridColor = chartCssVariable(canvas, '--chart-grid', '#D8DCE2');
+    const labelColor = chartCssVariable(canvas, '--chart-label', '#5C6570');
     return {
       type: 'line',
       data: {
@@ -109,7 +109,7 @@ export class ChartCardComponent implements AfterViewInit, OnDestroy {
 
   private applyData(labels: string[], data: number[], color: string): void {
     if (!this.chart) return;
-    const resolvedColor = chartCssColor(this.canvasRef().nativeElement, color, '#0F766E');
+    const resolvedColor = chartCssColor(this.canvasRef().nativeElement, color, '#1B4D3E');
     this.chart.data.labels = labels;
     this.chart.data.datasets[0].data = data;
     this.chart.data.datasets[0].borderColor = resolvedColor;

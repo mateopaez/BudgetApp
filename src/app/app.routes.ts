@@ -48,11 +48,6 @@ export const routes: Routes = [
       { path: 'categories', redirectTo: 'budgets', pathMatch: 'full' },
       { path: 'overview', redirectTo: 'plan', pathMatch: 'full' },
       { path: 'import', redirectTo: 'activity', pathMatch: 'full' },
-      {
-        path: 'todos',
-        loadComponent: () =>
-          import('./features/todos/todos.component').then((m) => m.TodosComponent),
-      },
     ],
   },
   { path: '**', redirectTo: 'home' },

@@ -129,10 +129,10 @@ export function computeNetActivity(transactions: Transaction[]): number {
 
 export function transactionAmountClass(tx: Transaction): string {
   if (tx.kind === 'expense' || (tx.kind === 'transfer' && tx.amount < 0)) {
-    return 'text-red-600';
+    return 'text-finance-expense';
   }
   if (tx.kind === 'income') {
     return 'text-action';
   }
-  return 'text-slate-600';
+  return 'text-ink-muted';
 }

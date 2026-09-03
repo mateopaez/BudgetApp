@@ -78,7 +78,7 @@ import { ModalSheetComponent } from '../../shared/modal-sheet/modal-sheet.compon
               </mat-select>
             </mat-form-field>
 
-            <details class="rounded-control border border-line bg-surface-muted/40 px-3 py-2">
+            <details class="rounded-control border border-line bg-surface-muted40 px-3 py-2">
               <summary class="cursor-pointer text-sm font-medium text-ink-muted">
                 Account, date, and amount
               </summary>

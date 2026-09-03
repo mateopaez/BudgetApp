@@ -223,7 +223,7 @@ import { ModalSheetComponent } from '../../shared/modal-sheet/modal-sheet.compon
             </div>
           </section>
 
-          <section class="space-y-3 rounded-panel border border-line bg-surface-muted/40 p-4">
+          <section class="space-y-3 rounded-panel border border-line bg-surface-muted40 p-4">
             <p class="kicker">Schedule</p>
             <mat-form-field appearance="outline">
               <mat-label>Schedule</mat-label>

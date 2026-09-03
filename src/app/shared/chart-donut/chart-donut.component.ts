@@ -77,7 +77,7 @@ export class ChartDonutComponent implements AfterViewInit, OnDestroy {
   private buildConfig(): ChartConfiguration<'doughnut'> {
     const self = this;
     const canvas = this.canvasRef().nativeElement;
-    const labelColor = chartCssVariable(canvas, '--chart-label', '#66736F');
+    const labelColor = chartCssVariable(canvas, '--chart-label', '#5C6570');
     const surfaceColor = chartCssVariable(canvas, '--chart-surface', '#FFFFFF');
     return {
       type: 'doughnut',
@@ -117,7 +117,7 @@ export class ChartDonutComponent implements AfterViewInit, OnDestroy {
     this.chart.data.labels = labels;
     this.chart.data.datasets[0].data = data;
     this.chart.data.datasets[0].backgroundColor = labels.map((_, i) =>
-      chartCssVariable(canvas, PALETTE_VARIABLES[i % PALETTE_VARIABLES.length], '#0F766E')
+      chartCssVariable(canvas, PALETTE_VARIABLES[i % PALETTE_VARIABLES.length], '#1B4D3E')
     );
     if (labels.length) {
       this.chart.resize();

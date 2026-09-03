@@ -67,8 +67,8 @@ export class ChartBarComponent implements AfterViewInit, OnDestroy {
 
   private buildConfig(): ChartConfiguration {
     const canvas = this.canvasRef().nativeElement;
-    const labelColor = chartCssVariable(canvas, '--chart-label', '#66736F');
-    const gridColor = chartCssVariable(canvas, '--chart-grid', '#DED8CE');
+    const labelColor = chartCssVariable(canvas, '--chart-label', '#5C6570');
+    const gridColor = chartCssVariable(canvas, '--chart-grid', '#D8DCE2');
     return {
       type: 'bar',
       data: { labels: [], datasets: [] },
@@ -117,7 +117,7 @@ export class ChartBarComponent implements AfterViewInit, OnDestroy {
           type: 'bar',
           label: series.label,
           data: series.data,
-          backgroundColor: chartCssColor(canvas, series.color, '#0F766E'),
+          backgroundColor: chartCssColor(canvas, series.color, '#1B4D3E'),
           borderRadius: 6,
           maxBarThickness: 36,
         });
@@ -127,7 +127,7 @@ export class ChartBarComponent implements AfterViewInit, OnDestroy {
         type: 'bar',
         label: 'Amount',
         data: this.data(),
-        backgroundColor: chartCssColor(canvas, this.color(), '#0F766E'),
+        backgroundColor: chartCssColor(canvas, this.color(), '#1B4D3E'),
         borderRadius: 6,
         maxBarThickness: 48,
       });
@@ -139,8 +139,8 @@ export class ChartBarComponent implements AfterViewInit, OnDestroy {
         type: 'line',
         label: this.averageLabel(),
         data: labels.map(() => avg),
-        borderColor: chartCssColor(canvas, this.averageColor(), '#66736F'),
-        backgroundColor: chartCssColor(canvas, this.averageColor(), '#66736F'),
+        borderColor: chartCssColor(canvas, this.averageColor(), '#5C6570'),
+        backgroundColor: chartCssColor(canvas, this.averageColor(), '#5C6570'),
         borderWidth: 2,
         pointRadius: 0,
         tension: 0,

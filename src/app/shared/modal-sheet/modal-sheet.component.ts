@@ -20,7 +20,7 @@ import { MatButtonModule } from '@angular/material/button';
   encapsulation: ViewEncapsulation.None,
   template: `
     <div
-      class="modal-sheet-backdrop fixed inset-0 z-[2000] flex items-end justify-center bg-ink/35 p-0 backdrop-blur-[2px] sm:items-center sm:p-6"
+      class="modal-sheet-backdrop fixed inset-0 z-[2000] flex items-end justify-center bg-ink-scrim p-0 backdrop-blur-[2px] sm:items-center sm:p-6"
       role="presentation"
       (click)="onBackdropClick()"
       (keydown.escape)="onEscape()"

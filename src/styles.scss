@@ -3,7 +3,16 @@
 @tailwind components;
 @tailwind utilities;
 
+*,
+::before,
+::after,
+::backdrop {
+  --tw-ring-color: var(--color-primary-a50);
+  --tw-ring-offset-color: #ffffff;
+}
+
 :root {
+  /* Solid palette — hex only for consistent cross-browser rendering */
   --color-canvas: #f3f4f6;
   --color-surface: #ffffff;
   --color-surface-raised: #fafbfc;
@@ -23,6 +32,30 @@
   --color-saving-soft: #e5eef6;
   --color-warning: #9a6700;
   --color-warning-soft: #f7f0de;
+
+  /* Alpha variants as 8-digit hex (not rgb()/opacity modifiers) */
+  --color-ink-faint: #14161c0a;
+  --color-ink-scrim: #14161c59;
+  --color-shadow-08: #14161c14;
+  --color-shadow-12: #14161c1f;
+  --color-surface-muted-40: #ebedf066;
+  --color-surface-muted-50: #ebedf080;
+  --color-surface-muted-60: #ebedf099;
+  --color-surface-muted-70: #ebedf0b3;
+  --color-primary-soft-30: #e4f0eb4d;
+  --color-primary-soft-40: #e4f0eb66;
+  --color-primary-soft-50: #e4f0eb80;
+  --color-primary-soft-60: #e4f0eb99;
+  --color-primary-a20: #1b4d3e33;
+  --color-primary-a30: #1b4d3e4d;
+  --color-primary-a40: #1b4d3e66;
+  --color-primary-a50: #1b4d3e80;
+  --color-primary-a60: #1b4d3e99;
+  --color-primary-selection: #1b4d3e29;
+  --color-expense-a20: #a32d2d33;
+  --color-expense-a25: #a32d2d40;
+  --color-warning-a25: #9a670040;
+
   --space-page: clamp(1rem, 2.5vw, 1.75rem);
   --radius-control: 0.5rem;
   --radius-panel: 0.75rem;
@@ -149,7 +182,7 @@ body.modal-sheet-open {
 }
 
 ::selection {
-  background: rgb(27 77 62 / 0.16);
+  background: var(--color-primary-selection);
 }
 
 :focus-visible {
@@ -282,7 +315,7 @@ body.modal-sheet-open {
   }
 
   .app-list-row {
-    @apply border-b border-line bg-surface px-4 py-3.5 transition-colors last:border-b-0 hover:bg-surface-muted/60;
+    @apply border-b border-line bg-surface px-4 py-3.5 transition-colors last:border-b-0 hover:bg-surface-muted60;
   }
 
   .money {
@@ -307,15 +340,15 @@ body.modal-sheet-open {
   }
 
   .status-banner--warning {
-    @apply border-finance-warning/25 bg-finance-warningSoft text-ink;
+    @apply border-finance-warningA25 bg-finance-warningSoft text-ink;
   }
 
   .status-banner--error {
-    @apply border-finance-expense/25 bg-finance-expenseSoft text-finance-expense;
+    @apply border-finance-expenseA25 bg-finance-expenseSoft text-finance-expense;
   }
 
   .status-banner--success {
-    @apply border-action/20 bg-action-soft text-ink;
+    @apply border-action-a20 bg-action-soft text-ink;
   }
 
   .status-banner--info {
@@ -518,7 +551,7 @@ body.modal-sheet-open {
 }
 
 .mat-drawer a.mat-mdc-list-item:hover:not(.active-nav) {
-  background-color: rgb(20 22 28 / 0.04) !important;
+  background-color: var(--color-ink-faint) !important;
   color: var(--color-ink);
 }
 

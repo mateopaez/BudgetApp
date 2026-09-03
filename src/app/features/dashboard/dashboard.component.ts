@@ -61,7 +61,7 @@ import { toLoadableSignal } from '../../core/utils/loadable-signal.util';
         </section>
       }
       @if (loadError()) {
-        <p class="rounded-2xl border border-finance-expense/20 bg-finance-expenseSoft p-4 text-sm text-finance-expense" role="alert">
+        <p class="rounded-2xl border border-finance-expenseA20 bg-finance-expenseSoft p-4 text-sm text-finance-expense" role="alert">
           {{ loadError() }}
         </p>
       }
@@ -108,7 +108,7 @@ import { toLoadableSignal } from '../../core/utils/loadable-signal.util';
             </div>
           </div>
 
-          <aside class="border-t border-line bg-[#fffcf7] p-5 sm:p-6 lg:border-l lg:border-t-0">
+          <aside class="border-t border-line bg-surface-raised p-5 sm:p-6 lg:border-l lg:border-t-0">
             <div class="flex items-center justify-between gap-3">
               <div>
                 <p class="kicker">Needs attention</p>
@@ -120,8 +120,8 @@ import { toLoadableSignal } from '../../core/utils/loadable-signal.util';
                 <a
                   class="block min-h-11 no-underline transition"
                   [class]="first
-                    ? 'rounded-2xl border border-action/30 bg-action-soft p-4 hover:border-action'
-                    : 'border-t border-line px-1 py-3 hover:bg-action-soft/30'"
+                    ? 'rounded-2xl border border-action-a30 bg-action-soft p-4 hover:border-action'
+                    : 'border-t border-line px-1 py-3 hover:bg-action-soft30'"
                   [routerLink]="action.route"
                   [queryParams]="action.queryParams"
                 >
@@ -224,7 +224,7 @@ import { toLoadableSignal } from '../../core/utils/loadable-signal.util';
             @for (row of topCategoryRows(); track row.categoryId) {
               <button
                 type="button"
-                class="min-h-11 w-full rounded-2xl border bg-surface p-4 text-left transition hover:border-action/50 hover:bg-action-soft/30"
+                class="min-h-11 w-full rounded-2xl border bg-surface p-4 text-left transition hover:border-action-a50 hover:bg-action-soft30"
                 [class.border-action]="effectiveDrillId() === row.categoryId"
                 [class.border-line]="effectiveDrillId() !== row.categoryId"
                 [attr.aria-pressed]="effectiveDrillId() === row.categoryId"
@@ -280,21 +280,21 @@ import { toLoadableSignal } from '../../core/utils/loadable-signal.util';
           <app-chart-bar
             [labels]="drillSeries().labels"
             [data]="drillSeries().values"
-            color="#475569"
+            color="#5C6570"
             [average]="drillSeries().average"
             averageLabel="Monthly average"
-            averageColor="#0F766E"
+            averageColor="#1B4D3E"
           />
           <div class="grid grid-cols-3 gap-2 sm:gap-3">
-            <div class="rounded-xl border border-line bg-surface-muted/50 px-2.5 py-2 sm:rounded-2xl sm:bg-surface sm:px-4 sm:py-3">
+            <div class="rounded-xl border border-line bg-surface-muted50 px-2.5 py-2 sm:rounded-2xl sm:bg-surface sm:px-4 sm:py-3">
               <p class="text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-muted sm:text-xs sm:tracking-[0.12em]">Period total</p>
               <p class="money mt-0.5 text-sm font-semibold tabular-nums text-ink sm:mt-1 sm:text-xl">{{ drillSeries().total | currency }}</p>
             </div>
-            <div class="rounded-xl border border-line bg-surface-muted/50 px-2.5 py-2 sm:rounded-2xl sm:bg-surface sm:px-4 sm:py-3">
+            <div class="rounded-xl border border-line bg-surface-muted50 px-2.5 py-2 sm:rounded-2xl sm:bg-surface sm:px-4 sm:py-3">
               <p class="text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-muted sm:text-xs sm:tracking-[0.12em]">Monthly avg</p>
               <p class="money mt-0.5 text-sm font-semibold tabular-nums text-ink sm:mt-1 sm:text-xl">{{ drillSeries().average | currency }}</p>
             </div>
-            <div class="rounded-xl border border-line bg-surface-muted/50 px-2.5 py-2 sm:rounded-2xl sm:bg-surface sm:px-4 sm:py-3">
+            <div class="rounded-xl border border-line bg-surface-muted50 px-2.5 py-2 sm:rounded-2xl sm:bg-surface sm:px-4 sm:py-3">
               <p class="text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-muted sm:text-xs sm:tracking-[0.12em]">Budget</p>
               <p class="money mt-0.5 text-sm font-semibold tabular-nums text-ink sm:mt-1 sm:text-xl">{{ drillBudget() != null ? (drillBudget() | currency) : 'Not set' }}</p>
             </div>

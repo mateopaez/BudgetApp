@@ -225,7 +225,7 @@ interface AccountGroup {
             </div>
           </section>
 
-          <section class="rounded-2xl border border-line bg-action-soft/40 p-4">
+          <section class="rounded-2xl border border-line bg-action-soft40 p-4">
             <p class="kicker">Opening balance</p>
             <div class="mt-3 grid gap-3 sm:grid-cols-2">
               <mat-form-field appearance="outline">
@@ -250,7 +250,7 @@ interface AccountGroup {
                 <input matInput type="date" formControlName="openingDate" />
               </mat-form-field>
             </div>
-            <p class="mt-3 rounded-xl border border-line bg-white px-3 py-2 text-sm text-ink-muted">
+            <p class="mt-3 rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink-muted">
               @if (isCreditCardForm()) {
                 @if (preservesPositiveCredit()) {
                   This existing credit is stored as

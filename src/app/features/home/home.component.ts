@@ -158,7 +158,7 @@ import { toLoadableSignal } from '../../core/utils/loadable-signal.util';
               @for (item of attentionItems(); track item.id) {
                 <li>
                   <a
-                    class="list-row flex items-start justify-between gap-3 no-underline transition-colors hover:bg-surface-muted/70"
+                    class="list-row flex items-start justify-between gap-3 no-underline transition-colors hover:bg-surface-muted70"
                     [routerLink]="item.route"
                     [queryParams]="item.queryParams"
                   >

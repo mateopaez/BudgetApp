@@ -39,7 +39,7 @@ interface NavItem {
         aria-label="Primary"
       >
         <div class="px-5 py-6">
-          <p class="font-display text-xl font-semibold tracking-[-0.02em] text-ink">Ledger</p>
+          <p class="font-display text-xl font-semibold tracking-[-0.02em] text-ink">BudgetApp</p>
           <p class="mt-1 truncate text-xs text-ink-muted">{{ auth.user()?.email }}</p>
         </div>
         <nav class="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3">
@@ -76,7 +76,7 @@ interface NavItem {
           >
             <div class="app-drawer-content flex h-full flex-col bg-surface">
               <div class="border-b border-line px-5 py-5">
-                <p class="font-display text-xl font-semibold tracking-[-0.02em] text-ink">Ledger</p>
+                <p class="font-display text-xl font-semibold tracking-[-0.02em] text-ink">BudgetApp</p>
                 <p class="mt-1 truncate text-xs text-ink-muted">{{ auth.user()?.email }}</p>
               </div>
 
@@ -120,7 +120,7 @@ interface NavItem {
                 <span
                   class="font-display truncate text-lg font-semibold leading-none tracking-[-0.02em]"
                 >
-                  Ledger
+                  BudgetApp
                 </span>
               </div>
               <button

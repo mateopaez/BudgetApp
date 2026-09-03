@@ -109,7 +109,7 @@ export function friendlyAuthError(error: unknown): string {
               <p
                 role="alert"
                 aria-live="assertive"
-                class="rounded-2xl border border-finance-expense/20 bg-finance-expenseSoft px-4 py-3 text-sm text-finance-expense"
+                class="rounded-2xl border border-finance-expenseA20 bg-finance-expenseSoft px-4 py-3 text-sm text-finance-expense"
               >
                 {{ error() }}
               </p>
@@ -161,7 +161,7 @@ export function friendlyAuthError(error: unknown): string {
     .mode-btn-active {
       background: var(--color-surface);
       color: var(--color-ink);
-      box-shadow: 0 1px 2px rgb(20 33 31 / 0.08);
+      box-shadow: 0 1px 2px var(--color-shadow-08);
     }
 
     .link-btn {
